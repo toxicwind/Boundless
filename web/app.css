@@ -42,6 +42,9 @@ pre { background:var(--bg); padding:1rem; border-radius:6px; overflow-x:auto; ma
 details { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:.5rem 1rem; margin-bottom:.5rem; }
 details summary { cursor:pointer; font-weight:600; }
 footer { text-align:center; padding:1rem; color:var(--muted); font-size:.85rem; border-top:1px solid var(--border); }
+.tabs { display:flex; gap:1rem; padding:1rem 2rem; border-bottom:1px solid var(--border); }
+.tab-btn { background:transparent; color:var(--muted); border:0; padding:.5rem 1rem; cursor:pointer; font-weight:600; border-bottom:2px solid transparent; }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
 .muted { color:var(--muted); font-size:.85rem; }
 .origin { font-size:.85rem; margin-top:.5rem; padding-top:.5rem; border-top:1px dashed var(--border); }
 .strategy { color:var(--muted); font-size:.8rem; margin-top:.5rem; }

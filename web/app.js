@@ -176,3 +176,17 @@ async function loadEdgeCases() {
 refresh();
 loadEdgeCases();
 setInterval(refresh, 5000);
+
+$$('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.tab-btn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
+    $$('.tab-pane').forEach(p => p.hidden = true);
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+    $('#tab-' + btn.dataset.target).hidden = false;
+  });
+});
+$('.tab-btn').click();
