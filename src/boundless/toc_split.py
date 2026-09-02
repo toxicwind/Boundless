@@ -208,6 +208,7 @@ def split_epub_by_toc(source: Path, output_dir: Optional[Path] = None) -> dict:
                     end_i, end_path, end_fragment = next_i, None, ""
             else:
                 end_i, end_path, end_fragment = len(book.spine_paths), None, ""
+            output_dir.mkdir(parents=True, exist_ok=True)
             output = output_dir / f"{filename}.epub"
             build_one(book, zf, node, start_i, start_path, start_fragment,
                       end_i, end_path, end_fragment, output)

@@ -93,8 +93,12 @@ function getSegmentSize(selectedFiles: string[], unzipped: Unzipped, opfDir: str
 export function splitBySize(
   sourcePath: string,
   outputDir: string,
-  strategy: ManifestStrategy = DefaultStrategy,
+  strategyOrMaxSize: ManifestStrategy | number = DefaultStrategy,
 ): SplitReport {
+  const strategy = typeof strategyOrMaxSize === "number"
+    ? { ...DefaultStrategy, maxSizeBytes: strategyOrMaxSize }
+    : strategyOrMaxSize;
+
   const data = strategy.preCompress(unzipSync(readFileSync(sourcePath)));
   const fileNames = Object.keys(data);
   const maxSizeBytes = strategy.maxSizeBytes;

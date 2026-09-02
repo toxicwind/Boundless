@@ -8,13 +8,8 @@ from urllib.parse import unquote, urlparse
 from collections import defaultdict, OrderedDict
 from pathlib import Path
 from typing import List, Set, Dict, Tuple, Optional, Any
-try:
-    from lxml import etree
-    HAS_LXML=True
-
-except ImportError:
-    HAS_LXML=False
-    import xml.etree.ElementTree as etree
+from .deps import etree, HAS_LXML
+print(f"DEBUG: EpubSplitter using lxml? {HAS_LXML}, etree: {etree}")
 from .models import DEFAULT_MAX_SIZE_BYTES, EPUB_NS, SHARED_ASSET_PATTERNS, ChunkMetadata, SplitReport, A11yLogger
 from .utils import discover_chunk_assets, compute_shared_assets, _rewrite_opf, _strip_external_links, get_path_part, resolve_href
 class EpubSplitter:
@@ -308,6 +303,3 @@ class EpubSplitter:
         return clean.replace("/", "_").replace("s9ml_", "").title() or "Section"
 
 
-# =============================================================================
-# SECTION 6: PDF SPLITTER
-# =============================================================================

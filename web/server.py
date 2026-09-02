@@ -78,11 +78,7 @@ SETTINGS_PATH = ROOT / "settings.json"
 for _d in (INBOX_DIR, ACTIVE_DIR, DONE_DIR, FAILED_DIR, PROFILES_DIR, PROCESSING_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(
-    title="Boundless",
-    version="2.0.0",
-    lifespan=lifespan,
-)
+app = FastAPI(title="Boundless", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 WEB_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")

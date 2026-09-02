@@ -27,38 +27,13 @@ from .models import (
 from .epub import EpubSplitter
 from .pdf import PdfSplitter
 from .registry import EdgeCaseRegistry
-# Optional dependencies with graceful degradation
-try:
-    from lxml import etree
-    HAS_LXML = True
-except ImportError:
-    HAS_LXML = False
-    import xml.etree.ElementTree as etree
-
-try:
-    import ebooklib
-    from ebooklib import epub
-    HAS_EBOOKLIB = True
-except ImportError:
-    HAS_EBOOKLIB = False
-
-try:
-    from PyPDF2 import PdfReader, PdfWriter
-    HAS_PYPDF2 = True
-except ImportError:
-    HAS_PYPDF2 = False
-
-try:
-    import fitz  # PyMuPDF
-    HAS_PYMUPDF = True
-except ImportError:
-    HAS_PYMUPDF = False
-
-try:
-    from docx import Document
-    HAS_PYTHON_DOCX = True
-except ImportError:
-    HAS_PYTHON_DOCX = False
+from .deps import (
+    etree, HAS_LXML,
+    epub, HAS_EBOOKLIB,
+    PdfReader, PdfWriter, HAS_PYPDF2,
+    fitz, HAS_PYMUPDF,
+    Document, HAS_PYTHON_DOCX
+)
 
 
 # =============================================================================
@@ -147,6 +122,3 @@ class DocxSplitter:
         return self.report
 
 
-# =============================================================================
-# SECTION 8: UNIVERSAL SPLITTER DISPATCHER
-# =============================================================================

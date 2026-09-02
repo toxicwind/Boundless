@@ -41,7 +41,7 @@ full = ["lxml>=4.9.0", "beautifulsoup4>=4.12.0", "ebooklib>=0.18", "pymupdf>=1.2
 dev = ["pytest>=8.0.0", "httpx>=0.27.0", "ruff>=0.3.0", "playwright>=1.42.0", "requests>=2.31.0"]
 
 [project.scripts]
-boundless = "boundless:main"
+boundless = "boundless_entry:main"
 boundless-web = "web.server:run"
 boundless-toc = "ada_splitter.toc_split:main"
 boundless-profile = "ada_splitter.profile:profile_epub"
