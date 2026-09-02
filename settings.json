@@ -1,0 +1,28 @@
+{
+  "auto_watch_inbox": true,
+  "auto_profile_on_upload": true,
+  "auto_split_on_upload": false,
+  "default_max_size_mb": 50,
+  "max_size_mb_options": [
+    25,
+    50,
+    75,
+    100
+  ],
+  "natural_reader_limit_mb": 50,
+  "default_split_method": "size",
+  "scan_recursive": false,
+  "scan_extensions": [
+    "epub",
+    "pdf",
+    "docx",
+    "doc"
+  ],
+  "tray_enabled": false,
+  "auto_open_browser_on_launch": true,
+  "theme": "dark",
+  "log_level": "info",
+  "open_browser_after_start": true,
+  "host": "0.0.0.0",
+  "port": 10200
+}

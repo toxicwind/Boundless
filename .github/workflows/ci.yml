@@ -1,0 +1,96 @@
+name: Sovereign Boundless CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install system deps (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[full,dev]"
+          pip install playwright requests pytest
+      - name: Install Playwright browsers
+        run: playwright install --with-deps chromium
+      - name: Compile check
+        run: |
+          python -m compileall src/ada_splitter web
+      - name: Run unit + E2E tests
+        env:
+          BOUNDLESS_TEST: "1"
+        run: |
+          pytest tests/ -v
+      - name: Smoke import
+        run: |
+          python -c "import sys; sys.path.insert(0,'src'); from ada_splitter import profile_epub, split_epub_by_toc, EpubSplitter, PdfSplitter, DocxSplitter; print('imports ok')"
+
+  build:
+    name: Build binary (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[full,dev]"
+          pip install pyinstaller
+      - name: Build (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: pyinstaller --noconfirm --clean boundless.spec
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: pyinstaller --noconfirm --clean boundless.spec
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sovereign-boundless-${{ matrix.os }}
+          path: |
+            dist/boundless
+            dist/boundless.exe
+          if-no-files-found: ignore
+
+  release:
+    name: GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true

@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "boundless"
+version = "2.0.0"
+description = "Sovereign Boundless — ADA / WCAG 2.1 AA / 50MB Natural Reader document splitter (EPUB/PDF/DOCX) with autonomous inbox processing"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "toxicwind"}]
+keywords = ["accessibility", "ada", "wcag", "epub", "pdf", "docx", "splitter", "natural-reader", "section-508", "sovereign", "boundless"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Markup",
+    "Topic :: Accessibility",
+    "Topic :: Education",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.6.0",
+    "lxml>=4.9.0",
+]
+
+[project.optional-dependencies]
+epub = ["beautifulsoup4>=4.12.0", "ebooklib>=0.18"]
+pdf = ["pymupdf>=1.23.0", "PyPDF2>=3.0.0"]
+docx = ["python-docx>=0.8.11"]
+tray = ["pystray>=0.19.5", "Pillow>=10.0.0"]
+full = ["lxml>=4.9.0", "beautifulsoup4>=4.12.0", "ebooklib>=0.18", "pymupdf>=1.23.0", "PyPDF2>=3.0.0", "python-docx>=0.8.11", "pystray>=0.19.5", "Pillow>=10.0.0"]
+dev = ["pytest>=8.0.0", "httpx>=0.27.0", "ruff>=0.3.0", "playwright>=1.42.0", "requests>=2.31.0"]
+
+[project.scripts]
+boundless = "boundless:main"
+boundless-web = "web.server:run"
+boundless-toc = "ada_splitter.toc_split:main"
+boundless-profile = "ada_splitter.profile:profile_epub"
+
+[project.urls]
+Homepage = "https://github.com/toxicwind/boundless"
+Issues = "https://github.com/toxicwind/boundless/issues"
+Documentation = "https://github.com/toxicwind/boundless#readme"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"ada_splitter" = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

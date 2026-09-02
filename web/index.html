@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>boundless · Sovereign Maximal</title>
+<link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="logo">📚</span>
+    <div>
+      <h1>boundless</h1>
+      <small>Sovereign Maximal · Port 10200 · ADA / WCAG 2.1 AA / 50MB Natural Reader</small>
+    </div>
+  </div>
+  <div class="actions">
+    <a href="/settings"><button class="ghost">Settings</button></a>
+    <button id="refresh">Refresh</button>
+    <button id="scan-btn" class="ghost">Scan…</button>
+  </div>
+</header>
+
+<main>
+  <section id="processing-panels">
+    <h2>Processing pipeline</h2>
+    <div class="pipeline">
+      <div class="lane" data-lane="inbox">
+        <h3>📥 Inbox <span class="muted" id="c-inbox">0</span></h3>
+        <ul id="lane-inbox"></ul>
+      </div>
+      <div class="lane" data-lane="active">
+        <h3>⚙️ Active <span class="muted" id="c-active">0</span></h3>
+        <ul id="lane-active"></ul>
+      </div>
+      <div class="lane" data-lane="done">
+        <h3>✅ Done <span class="muted" id="c-done">0</span></h3>
+        <ul id="lane-done"></ul>
+      </div>
+      <div class="lane" data-lane="failed">
+        <h3>❌ Failed <span class="muted" id="c-failed">0</span></h3>
+        <ul id="lane-failed"></ul>
+      </div>
+    </div>
+    <p class="muted">Drop EPUBs into <code>processing/inbox/</code> for autonomous handling (per settings).</p>
+  </section>
+
+  <section id="upload-zone">
+    <div id="drop">
+      <p><strong>Drop EPUBs here</strong> or <label class="file-label">browse<input id="files" type="file" accept=".epub,.pdf,.docx,.doc" multiple hidden/></label></p>
+      <small>Auto-creates profile JSON in <code>profiles/</code> on upload.</small>
+    </div>
+    <div id="upload-progress"></div>
+  </section>
+
+  <section id="uploaded" hidden>
+    <h2>Last upload</h2>
+    <div id="upload-list" class="cards"></div>
+  </section>
+
+  <section id="split-panel" hidden>
+    <h2>Split</h2>
+    <div class="row">
+      <label>Max chunk MB: <input id="max-mb" type="number" min="5" value="50"/></label>
+      <button id="split-btn">Split (size)</button>
+      <button id="split-toc-btn" class="ghost">Split by TOC</button>
+    </div>
+    <div id="split-result"></div>
+  </section>
+
+  <section>
+    <h2>Profiles <span class="muted" id="profile-count"></span></h2>
+    <div id="profiles" class="cards"></div>
+  </section>
+
+  <section>
+    <h2>Edge Case Registry</h2>
+    <details><summary>EPUB (75 cases)</summary><pre id="ec-epub"></pre></details>
+    <details><summary>PDF (49 cases)</summary><pre id="ec-pdf"></pre></details>
+    <details><summary>DOCX (40 cases)</summary><pre id="ec-docx"></pre></details>
+    <details><summary>Accessibility (36 cases)</summary><pre id="ec-a11y"></pre></details>
+  </section>
+</main>
+
+<footer><span id="health"></span></footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

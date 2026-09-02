@@ -1,0 +1,23 @@
+{
+  "name": "boundless",
+  "version": "2.0.0",
+  "description": "boundless — sovereign maximal document splitter (Bun-native, 50MB Natural Reader)",
+  "private": true,
+  "type": "module",
+  "main": "web/server.ts",
+  "scripts": {
+    "dev": "bun run --hot web/server.ts",
+    "start": "bun web/server.ts",
+    "test": "bun test tests/",
+    "build": "bun build web/server.ts --target=bun --outdir=dist"
+  },
+  "packageManager": "bun@1.3.14",
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22.0.0"
+  }
+}

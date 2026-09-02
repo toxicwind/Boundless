@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+venv/
+.venv/
+env/
+
+# Sovereign runtime data — never commit
+processing/
+profiles/
+data/
+*.epub
+*.pdf
+*.docx
+*.doc
+splits/
+output/
+!docs/**/*.epub
+!examples/**/*.epub
+
+# Settings (user-specific)
+.env
+!.env.example
+settings.local.json
+
+# Secrets (sovereign)
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+*.whl
+*.tar.gz
+!scripts/*.tar.gz
+
+# PyInstaller
+*.spec.bak
+__pycache__/

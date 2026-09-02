@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>boundless · Settings</title>
+<link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="logo">⚙️</span>
+    <div>
+      <h1>Settings</h1>
+      <small><a href="/">← back to dashboard</a></small>
+    </div>
+  </div>
+</header>
+<main>
+  <section>
+    <h2>Autonomous processing</h2>
+    <div class="form-row"><label><input type="checkbox" id="auto_watch_inbox"/> <span>Watch <code>processing/inbox/</code> and auto-process new files</span></label></div>
+    <div class="form-row"><label><input type="checkbox" id="auto_profile_on_upload"/> <span>Create profile JSON on every upload</span></label></div>
+    <div class="form-row"><label><input type="checkbox" id="auto_split_on_upload"/> <span>Auto-split on upload (uses <em>default split method</em>)</span></label></div>
+    <div class="form-row"><label><input type="checkbox" id="scan_recursive"/> <span>Recursive directory scan</span></label></div>
+  </section>
+
+  <section>
+    <h2>Splitting defaults</h2>
+    <div class="form-row">
+      <label>Default max chunk size (MB):
+        <input type="number" id="default_max_size_mb" min="5" max="500"/>
+      </label>
+      <small>Natural Reader non-PDF limit: 50 MB · PDF limit: 100 MB</small>
+    </div>
+    <div class="form-row">
+      <label>Default split method:
+        <select id="default_split_method">
+          <option value="size">Size (50MB chunks)</option>
+          <option value="toc">Top-level TOC (preserves publisher assets)</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Scan extensions (comma-separated):
+        <input type="text" id="scan_extensions" style="width:30em"/>
+      </label>
+    </div>
+  </section>
+
+  <section>
+    <h2>UI & runtime</h2>
+    <div class="form-row">
+      <label>Theme:
+        <select id="theme">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-row"><label><input type="checkbox" id="tray_enabled"/> <span>Enable system tray (macOS/Windows/Linux, reboundlesss pystray)</span></label></div>
+    <div class="form-row"><label><input type="checkbox" id="auto_open_browser_on_launch"/> <span>Open browser automatically when the server starts</span></label></div>
+    <div class="form-row">
+      <label>Host: <input type="text" id="host" style="width:10em"/></label>
+      <label>Port: <input type="number" id="port" min="1" max="65535" style="width:6em"/></label>
+    </div>
+  </section>
+
+  <div style="margin:2rem 0">
+    <button id="save">Save settings</button>
+    <button class="ghost" id="reload">Reload</button>
+    <span id="status" class="muted"></span>
+  </div>
+</main>
+<script src="/static/settings.js"></script>
+</body>
+</html>
