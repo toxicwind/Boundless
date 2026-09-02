@@ -1,7 +1,7 @@
 """
 tests/test_e2e.py — full E2E with Playwright + first-class tests for the 3 real
 EPUBs from Downloads (Your Health Today, Financial Accounting for Managers,
-Rams Write). Sovereign, no /mnt.
+Rams Write). No /mnt.
 
 Run:
   pip install playwright pytest requests httpx
@@ -326,10 +326,10 @@ def test_process_endpoint(server, http):
     assert any("done" in l for l in log)
     assert not dest.exists()
 
-def test_sovereign_blocks_mnt(server, http):
+def test_boundless_blocks_mnt(server, http):
     r = http.post(f"{server}/api/scan?directory=/mnt/anything", timeout=5)
     assert r.status_code == 403
-    assert "Sovereign" in r.text or "sovereign" in r.text or "denied" in r.text.lower()
+    assert "denied" in r.text or "denied" in r.text.lower()
 
 def test_path_traversal_blocked(server, http):
     r = http.get(f"{server}/api/outputs/../../etc/passwd", timeout=5)

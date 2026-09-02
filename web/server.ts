@@ -4,7 +4,7 @@
  * - Bun.file() for /api/outputs (64KB chunks, no full-file buffer)
  * - Autonomous inbox watcher via setInterval
  * - Settings in settings.json
- * - Sovereign: never /mnt
+ * - Never /mnt
  */
 
 import { mkdirSync, existsSync, statSync, readFileSync, writeFileSync, readdirSync, unlinkSync, renameSync, copyFileSync, createReadStream, statSync as fsStat } from "node:fs";
@@ -110,9 +110,9 @@ function ensureDone(p: string): string {
   if (!rp.startsWith(resolve(DONE))) throw new Error("403 path traversal");
   return rp;
 }
-function checkSovereign(p: string): string {
+function checkBoundary(p: string): string {
   const rp = resolve(p);
-  if (rp.split("/").includes("mnt")) throw new Error("403 sovereign boundary: /mnt denied");
+  if (rp.split("/").includes("mnt")) throw new Error("403 boundary: /mnt denied");
   return rp;
 }
 function safeName(n: string): string {
@@ -396,7 +396,7 @@ const server = Bun.serve({
 
     // ---------- Scan ----------
     if (method === "POST" && path === "/api/scan") {
-      const target = checkSovereign(join(url.searchParams.get("directory") || ""));
+      const target = checkBoundary(join(url.searchParams.get("directory") || ""));
       if (!existsSync(target) || !statSync(target).isDirectory()) {
         return new Response(`Directory not found: ${target}`, { status: 404 });
       }
@@ -475,5 +475,5 @@ const server = Bun.serve({
 });
 
 startWatcher();
-console.log(`boundless sovereign maximal web UI on http://${server.hostname}:${server.port}`);
+console.log(`boundless boundless maximal web UI on http://${server.hostname}:${server.port}`);
 console.log(`Drop EPUBs into ${INBOX} for autonomous processing`);

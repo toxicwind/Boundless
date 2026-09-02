@@ -14,7 +14,7 @@ venv/
 .venv/
 env/
 
-# Sovereign runtime data — never commit
+# Runtime data — never commit
 processing/
 profiles/
 data/
@@ -32,7 +32,7 @@ output/
 !.env.example
 settings.local.json
 
-# Secrets (sovereign)
+# Secrets (boundless)
 *.pem
 *.key
 

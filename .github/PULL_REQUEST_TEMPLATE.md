@@ -1,7 +1,7 @@
 ## Summary
 What does this PR do?
 
-## Sovereign checks
+## Boundless checks
 - [ ] No `/mnt` paths introduced
 - [ ] `processing/{inbox,active,done,failed}/` layout respected
 - [ ] Settings exposed in `settings.json` if user-configurable

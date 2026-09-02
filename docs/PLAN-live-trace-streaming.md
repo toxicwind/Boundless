@@ -190,7 +190,7 @@ async def lifespan(app: FastAPI):
 
 # Modify the existing app = FastAPI(...) at line 60 to pass lifespan:
 app = FastAPI(
-    title="Boundless Sovereign Maximal",
+    title="Boundless",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -268,7 +268,7 @@ Update per-test timeouts (edit in place):
 **Edit:** `tests/test_e2e.py`
 
 - Line 88: `assert "Boundless" in page.title()` → `assert "boundless" in page.title().lower()`
-- Line 325-330: `test_sovereign_blocks_mnt` — do not change logic; the fixture fix from Step 7 makes it pass.
+- Line 325-330: `test_boundless_blocks_mnt` — do not change logic; the fixture fix from Step 7 makes it pass.
 - Line 332: `test_path_traversal_blocked` — `requests` normalizes `..`. Add `httpx` to dev deps; use `httpx.get(f"{server}/api/outputs/foo%2F..%2Fbar")` for the literal traversal test.
 
 ### Step 9 — New compression-assertion test (add only)

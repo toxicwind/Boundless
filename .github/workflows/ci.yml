@@ -1,4 +1,4 @@
-name: Sovereign Boundless CI
+name: Boundless CI
 
 on:
   push:
@@ -72,7 +72,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sovereign-boundless-${{ matrix.os }}
+          name: boundless-boundless-${{ matrix.os }}
           path: |
             dist/boundless
             dist/boundless.exe

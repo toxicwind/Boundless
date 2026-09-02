@@ -1,7 +1,7 @@
 """
-web/server.py — boundless sovereign web UI (FastAPI, default port 10200).
+web/server.py — boundless boundless web UI (FastAPI, default port 10200).
 
-Layout (sovereign, never /mnt):
+Layout (boundless, never /mnt):
   boundless/
     processing/inbox/   # fresh uploads + autonomous drop-in target
     processing/active/  # currently being processed
@@ -10,7 +10,7 @@ Layout (sovereign, never /mnt):
     profiles/           # auto-created JSON profiles
     settings.json       # editable from /settings
 
-Endpoints (all sovereign path-bounded):
+Endpoints (all boundless path-bounded):
   GET  /                       — UI
   GET  /settings               — settings UI
   GET  /api/health             — health + counts
@@ -22,7 +22,7 @@ Endpoints (all sovereign path-bounded):
   POST /api/split/{id}         — size-based split
   POST /api/split-toc/{id}     — top-level TOC split (preserves assets)
   GET  /api/outputs/{sub}/{f}  — download a chunk
-  POST /api/scan               — scan a sovereign directory
+  POST /api/scan               — scan a boundless directory
   GET  /api/profiles           — list profiles
   DEL  /api/profiles/{file}    — delete profile
   GET  /api/processing         — list files in inbox/active/done/failed
@@ -52,7 +52,7 @@ from boundless import (
     DEFAULT_MAX_SIZE_MB, EdgeCaseRegistry,
 )
 
-# ---- .env loader (sovereign, no dotenv dep) ----
+# ---- .env loader (boundless, no dotenv dep) ----
 def _load_env():
     env = ROOT / ".env"
     if not env.exists():
@@ -79,7 +79,7 @@ for _d in (INBOX_DIR, ACTIVE_DIR, DONE_DIR, FAILED_DIR, PROFILES_DIR, PROCESSING
     _d.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
-    title="boundless Sovereign Maximal",
+    title="Boundless",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -87,7 +87,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 WEB_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
-# ---- Settings (sovereign JSON, editable from frontend) ----
+# ---- Settings (boundless JSON, editable from frontend) ----
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "auto_watch_inbox": True,        # process new files in inbox/ automatically
     "auto_profile_on_upload": True,  # create profile JSON on every upload
@@ -228,10 +228,10 @@ def _splitter_for(path: Path, max_size_mb: int):
         return DocxSplitter(max_size_bytes=max_size_mb*1024*1024, logger=logger)
     raise HTTPException(415, f"Unsupported: {ext}")
 
-def _check_sovereign(p: Path):
+def _check_boundless(p: Path):
     s = str(p.resolve())
     if "/mnt" in s.split("/"):
-        raise HTTPException(403, "Sovereign boundary: /mnt access denied")
+        raise HTTPException(403, "Boundary: /mnt access denied")
     return p
 
 # ---- Routes ----
@@ -439,7 +439,7 @@ async def processing_state():
 
 @app.post("/api/scan")
 async def scan(directory: str):
-    target = _check_sovereign(Path(directory).expanduser())
+    target = _check_boundless(Path(directory).expanduser())
     if not target.exists() or not target.is_dir():
         raise HTTPException(404, f"Directory not found: {target}")
     settings = _load_settings()
@@ -496,7 +496,7 @@ async def edge_cases():
     }
 
 def run():
-    print(f"boundless sovereign web UI on http://{HOST}:{PORT}")
+    print(f"boundless boundless web UI on http://{HOST}:{PORT}")
     print(f"Drop EPUBs into {INBOX_DIR} for autonomous processing")
     uvicorn.run("web.server:app", host=HOST, port=PORT, reload=False, log_level="info")
 

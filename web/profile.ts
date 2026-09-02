@@ -1,6 +1,6 @@
 /**
  * profile.ts — Bun-native EPUB profiler using fast-xml-parser + fflate
- * Sovereign: no /mnt, only paths under processing/
+ * No /mnt, only paths under processing/
  */
 
 import { readFileSync, statSync, existsSync } from "node:fs";

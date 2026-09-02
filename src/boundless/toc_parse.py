@@ -1,7 +1,7 @@
 """
 toc_parse — EPub 3 navigation + NCX parsing primitives for the maximal splitter.
 
-Pure functions, file-split preserved. No /mnt, no sovereign-runtime concerns here.
+Pure functions, file-split preserved. No /mnt, no boundless-runtime concerns here.
 """
 from __future__ import annotations
 import re

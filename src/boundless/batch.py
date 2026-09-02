@@ -1,4 +1,4 @@
-"""batch — file-split preserved batch processor (sovereign, no /mnt)"""
+"""batch — file-split preserved batch processor (boundless, no /mnt)"""
 import os, json, argparse
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed

@@ -1,5 +1,5 @@
 """
-toc_split — Sovereign driver for the maximal EPUB 3 splitter.
+toc_split — Driver for the maximal EPUB 3 splitter.
 
 Top-level: one EPUB per top-level TOC entry, with publisher files preserved
 (MathML, CSS, images, fonts, metadata, navigation). Modular split:
@@ -8,7 +8,7 @@ Top-level: one EPUB per top-level TOC entry, with publisher files preserved
   toc_build — OPF mutation + chunk writer (file-preserving)
   toc_split — this driver (Book load, locations, run)
 
-Sovereign: no /mnt. Pure pathlib + zipfile.
+No /mnt. Pure pathlib + zipfile.
 """
 from __future__ import annotations
 import os
@@ -144,9 +144,9 @@ def locate_top_levels(book: Book):
     return locations
 
 
-# ---------- sovereign file picker ----------
+# ---------- boundless file picker ----------
 def choose_epub(arg: Optional[str] = None) -> Optional[Path]:
-    """Sovereign file picker: CLI arg → macOS native → Linux zenity/kdialog → stdin.
+    """File picker: CLI arg → macOS native → Linux zenity/kdialog → stdin.
     No /mnt paths accepted."""
     if arg:
         p = Path(arg).expanduser().resolve()
@@ -216,7 +216,7 @@ def split_epub_by_toc(source: Path, output_dir: Optional[Path] = None) -> dict:
 
 
 def main():
-    """Sovereign CLI: python -m boundless.toc_split [path/to/book.epub]"""
+    """CLI: python -m boundless.toc_split [path/to/book.epub]"""
     arg = sys.argv[1] if len(sys.argv) > 1 else None
     src = choose_epub(arg)
     if not src:

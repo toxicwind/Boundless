@@ -1,5 +1,5 @@
 """
-boundless.py — sovereign entry point. Run as `python boundless.py` (or `boundless` on PATH).
+boundless.py — boundless entry point. Run as `python boundless.py` (or `boundless` on PATH).
 Auto-opens browser (configurable in settings.json), starts tray if enabled.
 """
 from __future__ import annotations

@@ -1,9 +1,9 @@
 """
-profile — First-class EPUB profiler (sovereign, no /mnt).
+profile — First-class EPUB profiler (boundless, no /mnt).
 
 Publisher-origin detection is primary: file originator determines pipeline.
 Auto-creates new profiles: watch, CLI, and API all persist to profiles/.
-Sovereign: pathlib, tempfile, never /mnt.
+Boundless: pathlib, tempfile, never /mnt.
 """
 from __future__ import annotations
 import re, os, json, zipfile, posixpath, hashlib, time
@@ -150,12 +150,12 @@ def profile_many(paths: List[str | Path]) -> List[EpubProfile]:
 def profile_dir(directory: str | Path, pattern: str = "*.epub") -> List[EpubProfile]:
     return [profile_epub(p) for p in sorted(Path(directory).glob(pattern))]
 
-# Auto-create: persist profile JSON to profiles/ directory (sovereign, no /mnt)
+# Auto-create: persist profile JSON to profiles/ directory (boundless, no /mnt)
 def ensure_profile(epub_path: str | Path, profiles_dir: str | Path = None) -> Path:
     """Auto-create profile JSON for a single EPUB. Returns path to JSON. Idempotent via sha."""
     p = profile_epub(epub_path)
     if profiles_dir is None:
-        # sovereign default: <project>/profiles or $HOME/Downloads/profiles
+        # boundless default: <project>/profiles or $HOME/Downloads/profiles
         profiles_dir = Path(__file__).resolve().parents[2] / "profiles"
     profiles_dir = Path(profiles_dir)
     profiles_dir.mkdir(parents=True, exist_ok=True)
@@ -172,7 +172,7 @@ def auto_create_profiles(targets: List[str | Path], profiles_dir: str | Path = N
     """Auto-create profiles for many EPUBs. Returns list of JSON paths."""
     outs = []
     for t in targets:
-        # expand globs sovereign-friendly
+        # expand globs boundless-friendly
         import glob as _glob
         expanded = _glob.glob(os.path.expanduser(str(t)))
         if expanded:
@@ -185,7 +185,7 @@ def auto_create_profiles(targets: List[str | Path], profiles_dir: str | Path = N
 
 if __name__ == "__main__":
     import argparse, glob as _glob
-    ap = argparse.ArgumentParser(description="EPUB publisher-aware profile (sovereign, auto-creates)")
+    ap = argparse.ArgumentParser(description="EPUB publisher-aware profile (boundless, auto-creates)")
     ap.add_argument("epubs", nargs="*", help="EPUB files or globs")
     ap.add_argument("--json", action="store_true", help="JSON to stdout")
     ap.add_argument("--out", help="Write combined JSON to file")

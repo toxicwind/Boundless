@@ -15,7 +15,7 @@ A clear and concise description of what you want to happen.
 **Describe alternatives you've considered**
 Any alternative solutions or features you've considered.
 
-**Sovereign alignment**
+**Boundless alignment**
 - [ ] Works with `processing/{inbox,active,done,failed}/` layout
 - [ ] No `/mnt` paths introduced
 - [ ] Settings exposed via `settings.json` if configurable

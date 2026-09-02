@@ -1,7 +1,7 @@
 {
   "name": "boundless",
   "version": "2.0.0",
-  "description": "boundless — sovereign maximal document splitter (Bun-native, 50MB Natural Reader)",
+  "description": "boundless — boundless maximal document splitter (Bun-native, 50MB Natural Reader)",
   "private": true,
   "type": "module",
   "main": "web/server.ts",
@@ -17,7 +17,15 @@
     "fflate": "^0.8.2"
   },
   "devDependencies": {
+    "@semantic-release/git": "^11.0.1",
+    "@semantic-release/github": "^12.0.9",
     "@types/bun": "latest",
-    "@types/node": "^22.0.0"
-  }
+    "@types/node": "^22.0.0",
+    "semantic-release": "^25.0.9"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "keywords": []
 }

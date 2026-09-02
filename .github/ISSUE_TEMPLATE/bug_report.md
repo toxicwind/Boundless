@@ -27,7 +27,7 @@ If applicable, add screenshots or paste the relevant server log.
 - boundless version: [e.g. 2.0.0]
 - Installation method: [pip / pyinstaller / git clone]
 
-**Sovereign checks**
+**Boundless checks**
 - [ ] No `/mnt` paths in your config (`/settings` → `PROCESSING_DIR`)
 - [ ] Settings file exists at repo root (`settings.json`)
 - [ ] lxml installed (`pip show lxml`)

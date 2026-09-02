@@ -1,6 +1,6 @@
 # Contributing to boundless
 
-Sovereign means:
+Boundless means:
 - No `/mnt` paths anywhere. Use `pathlib` + `~`-expansion.
 - No container-absolute paths (`/var/lib/...`, `/app/...`).
 - All user data lives under `processing/` and `profiles/` next to the binary.

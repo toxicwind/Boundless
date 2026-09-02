@@ -1,5 +1,5 @@
 """
-Sovereign ADA maximal — models (file-split preserved, not regenerated)
+ADA maximal — models (file-split preserved, not regenerated)
 Split from boundless_splitter.py to avoid loss.
 """
 import sys

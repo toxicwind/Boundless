@@ -1,4 +1,4 @@
-"""boundless — Sovereign ADA maximal (file-split preserved, modular)"""
+"""boundless — ADA maximal (file-split preserved, modular)"""
 from .models import ChunkMetadata, SplitReport, A11yLogger, DEFAULT_MAX_SIZE_MB
 from .registry import EdgeCaseRegistry
 from .epub import EpubSplitter

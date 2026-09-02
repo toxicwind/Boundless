@@ -154,7 +154,7 @@ $('#split-btn').addEventListener('click', async () => {
 $('#refresh').addEventListener('click', refresh);
 
 $('#scan-btn').addEventListener('click', async () => {
-  const d = prompt('Sovereign directory to scan (no /mnt):', '~/Downloads');
+  const d = prompt('Directory to scan (no /mnt):', '~/Downloads');
   if (!d) return;
   try {
     const r = await api(`/api/scan?directory=${encodeURIComponent(d)}`, {method:'POST'});

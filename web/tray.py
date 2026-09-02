@@ -12,7 +12,7 @@ def start_tray(port: int = 10200):
         import pystray
         from PIL import Image, ImageDraw
     except Exception:
-        return None  # sovereign: tray is optional, never crash the server
+        return None  # boundless: tray is optional, never crash the server
     import webbrowser, os
 
     def make_icon():
@@ -42,7 +42,7 @@ def start_tray(port: int = 10200):
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Quit", quit_app),
     )
-    icon = pystray.Icon("boundless", make_icon(), "boundless · Sovereign Maximal", menu)
+    icon = pystray.Icon("boundless", make_icon(), "Boundless", menu)
     t = threading.Thread(target=icon.run, daemon=True)
     t.start()
     return icon
