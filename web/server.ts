@@ -11,7 +11,7 @@ import { mkdirSync, existsSync, statSync, readFileSync, writeFileSync, readdirSy
 import { join, basename, dirname, resolve, extname, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { profileEpub, type EpubProfile } from "./profile.ts";
-import { splitBySize, splitByToc, type SplitReport } from "./splitter.ts";
+import { splitBySize, splitByToc, DefaultStrategy, type SplitReport } from "./splitter.ts";
 
 const ROOT = resolve(dirname(import.meta.path.replace("file://", "")), "..");
 const PROCESSING_DIR = process.env.PROCESSING_DIR
@@ -156,7 +156,7 @@ async function processOne(file: string, settings: Settings) {
       mkdirSync(out, { recursive: true });
       const r = settings.default_split_method === "toc"
         ? splitByToc(file, out)
-        : splitBySize(file, out, settings.default_max_size_mb * 1024 * 1024);
+        : splitBySize(file, out, { ...DefaultStrategy, maxSizeBytes: settings.default_max_size_mb * 1024 * 1024 });
       log.push(`split → ${r.count} chunks in ${basename(out)}`);
     }
     const dest = join(DONE, basename(file));
@@ -314,7 +314,7 @@ const server = Bun.serve({
         const out = join(DONE, `${basename(active, extname(active))}_${method2}`);
         const r: SplitReport = method2 === "toc"
           ? splitByToc(active, out)
-          : splitBySize(active, out, maxMb * 1024 * 1024);
+          : splitBySize(active, out, { ...DefaultStrategy, maxSizeBytes: maxMb * 1024 * 1024 });
         log.push(`split → ${r.count} chunks in ${basename(out)}`);
         const finalDest = join(DONE, basename(active));
         let finalPath = finalDest;
@@ -337,7 +337,7 @@ const server = Bun.serve({
       try { src = ensureIn(join(INBOX, upid)); } catch (e: any) { return new Response(e.message, { status: 403 }); }
       if (!existsSync(src)) return new Response("Not found", { status: 404 });
       const out = join(DONE, basename(src, extname(src)));
-      const r = splitBySize(src, out, maxMb * 1024 * 1024);
+      const r = splitBySize(src, out, { ...DefaultStrategy, maxSizeBytes: maxMb * 1024 * 1024 });
       return Response.json(r);
     }
 

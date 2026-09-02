@@ -34,7 +34,6 @@ export const NeuralCompatible: ManifestStrategy = {
   },
 };
 
-
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { unzipSync, strFromU8, zipSync, Zip, Unzipped } from "fflate";
@@ -68,16 +67,7 @@ function resolveHref(baseFile: string, href: string): string {
 }
 
 function getReferencedAssets(files: string[], unzipped: Unzipped, opfDir: string): Set<string> {
-  strategy: ManifestStrategy = DefaultStrategy,
-): SplitReport {
-  const maxSizeBytes = strategy.maxSizeBytes;
-  const data = strategy.preCompress(unzipSync(readFileSync(sourcePath)));
-  const fileNames = Object.keys(data);
-
-  const opfFile = fileNames.find((f) => f.endsWith(".opf"));
-  if (!opfFile) throw new Error("No OPF in EPUB");
-  const opfDir = dirname(opfFile);
-  const opfRaw = strFromU8(data[opfFile]);
+  const assets = new Set<string>();
   for (const f of files) {
     if (!/\.(xhtml|html|htm)$/i.test(f)) continue;
     const html = strFromU8(unzipped[f]);
@@ -103,16 +93,16 @@ function getSegmentSize(selectedFiles: string[], unzipped: Unzipped, opfDir: str
 export function splitBySize(
   sourcePath: string,
   outputDir: string,
-  maxSizeBytes: number,
+  strategy: ManifestStrategy = DefaultStrategy,
 ): SplitReport {
-  const data = readFileSync(sourcePath);
-  const unzipped = unzipSync(data);
-  const fileNames = Object.keys(unzipped);
+  const data = strategy.preCompress(unzipSync(readFileSync(sourcePath)));
+  const fileNames = Object.keys(data);
+  const maxSizeBytes = strategy.maxSizeBytes;
 
   const opfFile = fileNames.find((f) => f.endsWith(".opf"));
   if (!opfFile) throw new Error("No OPF in EPUB");
   const opfDir = dirname(opfFile);
-  const opfRaw = strFromU8(unzipped[opfFile]);
+  const opfRaw = strFromU8(data[opfFile]);
 
   const manifest: Record<string, string> = {};
   const itemRe = /<item\s+([^>]+)\/?>/g;
@@ -145,18 +135,18 @@ export function splitBySize(
   let chunkIdx = 0;
 
   for (const [dirName, files] of Object.entries(groups)) {
-    const approxSize = getSegmentSize(files, unzipped, opfDir);
+    const approxSize = getSegmentSize(files, data, opfDir);
     if (approxSize <= maxSizeBytes || files.length === 1) {
       chunkIdx++;
       const name = dirName.replace(/[\/\\]/g, "_") || `Section_${chunkIdx}`;
-      writeChunk(unzipped, fileNames, opfFile, files, outputDir, name, sections);
+      writeChunk(data, fileNames, opfFile, files, outputDir, name, sections, maxSizeBytes, warnings);
     } else {
-      const sized = files.map((f) => ({ f, sz: unzipped[f]?.byteLength ?? 0 }));
+      const sized = files.map((f) => ({ f, sz: data[f]?.byteLength ?? 0 }));
       const bins: { f: string; sz: number }[][] = [];
       for (const item of sized) {
         let placed = false;
         for (const b of bins) {
-          const binSize = b.reduce((s, x) => s + x.sz, 0);
+          const binSize = b.reduce((s: number, x: { f: string; sz: number }) => s + x.sz, 0);
           if (binSize + item.sz <= maxSizeBytes) {
             b.push(item);
             placed = true;
@@ -170,7 +160,7 @@ export function splitBySize(
         const binFiles = bins[bi].map((x) => x.f);
         const name = (dirName.replace(/[\/\\]/g, "_") || `Section_${chunkIdx}`) +
           (bins.length > 1 ? `_${bi + 1}` : "");
-        writeChunk(unzipped, fileNames, opfFile, binFiles, outputDir, name, sections);
+        writeChunk(data, fileNames, opfFile, binFiles, outputDir, name, sections, maxSizeBytes, warnings);
       }
     }
   }
@@ -192,7 +182,9 @@ function writeChunk(
   keep: string[],
   outputDir: string,
   name: string,
-  sections: string[]
+  sections: string[],
+  maxSizeBytes: number,
+  warnings: string[]
 ): void {
   const referencedAssets = getReferencedAssets(keep, unzipped, dirname(opfFile));
   const allFiles = [...keep, ...referencedAssets];
@@ -202,9 +194,13 @@ function writeChunk(
       out[f] = unzipped[f];
     }
   }
-  const outName = `${name}.epub`;
-  writeFileSync(join(outputDir, outName), zipSync(out));
-  sections.push(outName);
+  const buf = zipSync(out);
+  if (buf.byteLength > maxSizeBytes) {
+    warnings.push(`${name}: chunk size ${buf.byteLength} exceeds max ${maxSizeBytes}`);
+    return;
+  }
+  writeFileSync(join(outputDir, `${name}.epub`), buf);
+  sections.push(`${name}.epub`);
 }
 
 export interface TocNode {
@@ -343,17 +339,17 @@ function parseNcxToc(ncxRaw: string): TocNode[] {
 export function splitByToc(
   sourcePath: string,
   outputDir: string,
-  options: { recursive?: boolean; maxSizeBytes?: number } = {},
+  options: { recursive?: boolean; maxSizeBytes?: number; strategy?: ManifestStrategy } = {},
 ): SplitReport {
-  const maxSizeBytes = options.maxSizeBytes ?? 50 * 1024 * 1024;
-  const data = readFileSync(sourcePath);
-  const unzipped = unzipSync(data);
-  const fileNames = Object.keys(unzipped);
+  const strategy = options.strategy ?? DefaultStrategy;
+  const maxSizeBytes = options.maxSizeBytes ?? strategy.maxSizeBytes;
+  const data = strategy.preCompress(unzipSync(readFileSync(sourcePath)));
+  const fileNames = Object.keys(data);
 
   const opfFile = fileNames.find((f) => f.endsWith(".opf"));
   if (!opfFile) throw new Error("No OPF in EPUB");
   const opfDir = dirname(opfFile);
-  const opfRaw = strFromU8(unzipped[opfFile]);
+  const opfRaw = strFromU8(data[opfFile]);
 
   const manifest: Record<string, string> = {};
   const manifestByPath: Record<string, string> = {};
@@ -384,11 +380,11 @@ export function splitByToc(
   }
 
   let toc: TocNode[] = [];
-  if (navPath && unzipped[navPath]) {
-    toc = parseToc(strFromU8(unzipped[navPath]), navPath);
+  if (navPath && data[navPath]) {
+    toc = parseToc(strFromU8(data[navPath]), navPath);
   }
-  if (toc.length === 0 && ncxPath && unzipped[ncxPath]) {
-    toc = parseNcxToc(strFromU8(unzipped[ncxPath]));
+  if (toc.length === 0 && ncxPath && data[ncxPath]) {
+    toc = parseNcxToc(strFromU8(data[ncxPath]));
   }
   if (toc.length === 0) throw new Error("No usable TOC found");
 
@@ -425,7 +421,7 @@ export function splitByToc(
       if (options.recursive && node.children.length > 0) {
         const next = findSpineStart(node.children[0])?.idx ?? spineFiles.length;
         const selected = spineFiles.slice(loc.idx, next);
-        const size = getSegmentSize(selected, unzipped, opfDir);
+        const size = getSegmentSize(selected, data, opfDir);
         if (size <= maxSizeBytes) {
           for (const child of node.children) collect(child);
           return;
@@ -473,7 +469,7 @@ export function splitByToc(
     const selected = spineFiles.slice(loc.idx, endIdx);
     if (selected.length === 0) continue;
     
-    const allFiles = [...selected, ...Array.from(getReferencedAssets(selected, unzipped, opfDir))];
+    const allFiles = [...selected, ...Array.from(getReferencedAssets(selected, data, opfDir))];
     const keepManifestIds = new Set<string>();
     for (const f of allFiles) { const id = manifestByPath[f]; if (id) keepManifestIds.add(id); }
     if (navPath && manifestByPath[navPath]) keepManifestIds.add(manifestByPath[navPath]);
@@ -492,21 +488,21 @@ export function splitByToc(
       .replace(/<guide[\s\S]*?<\/guide>/g, "");
 
     const out: Unzipped = {};
-    if (unzipped["mimetype"]) out["mimetype"] = unzipped["mimetype"];
+    if (data["mimetype"]) out["mimetype"] = data["mimetype"];
     for (const name of fileNames) {
       if (name === "mimetype" || name.startsWith("META-INF/") || name === opfFile || (navPath && name === navPath)) {
-        if (unzipped[name]) out[name] = unzipped[name];
+        if (data[name]) out[name] = data[name];
       }
     }
     out[opfFile] = new TextEncoder().encode(newOpf);
     if (navPath) {
-      const newNav = strFromU8(unzipped[navPath])
+      const newNav = strFromU8(data[navPath])
         .replace(/<ol[^>]*>[\s\S]*?<\/ol>/, `<ol>${loc.node.sourceElement.replace(/<li[^>]*>|<\/li>/g, "").match(/<li[^>]*>[\s\S]*<\/li>/)?.[0] ?? ""}</ol>`);
       out[navPath] = new TextEncoder().encode(newNav);
     }
     for (const f of fileNames) {
       if (f === opfFile || f === "mimetype" || f.startsWith("META-INF/") || (navPath && f === navPath)) continue;
-      if (allFiles.includes(f)) out[f] = unzipped[f];
+      if (allFiles.includes(f)) out[f] = data[f];
     }
     const outName = `${names[i]}.epub`;
     writeFileSync(join(outputDir, outName), zipSync(out));
