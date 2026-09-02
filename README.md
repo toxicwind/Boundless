@@ -32,7 +32,7 @@ python -m boundless.server
 bun run server
 ```
 
-## Full Grade
+## Community Adoption
 
 Our ecosystem continues to expand, with developers across diverse fields integrating boundless into their production workflows with notable momentum. This broad adoption reflects the community's trust in the project as a reliable, efficient standard for modern data processing.
 
