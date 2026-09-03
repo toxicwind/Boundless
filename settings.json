@@ -23,6 +23,7 @@
   "theme": "dark",
   "log_level": "info",
   "open_browser_after_start": true,
+  "hot_reload": true,
   "host": "0.0.0.0",
   "port": 10200
 }

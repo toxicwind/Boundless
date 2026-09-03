@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Boundless</title>
+<title>Boundless · Accessibility Splitter & Ingestion Engine</title>
 <link rel="stylesheet" href="/static/app.css"/>
 </head>
 <body>
@@ -11,92 +11,207 @@
   <div class="brand">
     <span class="logo">📚</span>
     <div>
-      <h1>boundless</h1>
-      <small>Boundless · Port 10200 · ADA / WCAG 2.1 AA / 50MB Natural Reader</small>
+      <div class="title-row">
+        <h1>Boundless</h1>
+        <span class="version-badge">v2.0.0</span>
+        <span id="health-pill" class="status-pill ok"><span class="dot"></span> <span id="health-text">Checking...</span></span>
+        <span id="watcher-pill" class="status-pill ok"><span class="dot pulse"></span> <span id="watcher-text">Watcher Active</span></span>
+        <span class="status-pill info">⚡ Hot Reload</span>
+      </div>
+      <small>Autonomous ADA-Compliant Document Splitter & Ingestion Pipeline</small>
     </div>
   </div>
+  <div class="stats-bar">
+    <div class="stat-box" title="Inbox files pending"><span class="stat-num" id="s-inbox">0</span><span class="stat-label">Inbox</span></div>
+    <div class="stat-box" title="Active processing jobs"><span class="stat-num" id="s-active">0</span><span class="stat-label">Active</span></div>
+    <div class="stat-box" title="Completed runs"><span class="stat-num" id="s-done">0</span><span class="stat-label">Completed</span></div>
+    <div class="stat-box" title="Extracted book profiles"><span class="stat-num" id="s-profiles">0</span><span class="stat-label">Profiles</span></div>
+  </div>
   <div class="actions">
-    <a href="/settings"><button class="ghost">Settings</button></a>
-    <button id="theme-toggle" class="ghost">🌙</button>
-    <button id="refresh">Refresh</button> <span id="last-updated" class="muted"></span>
-    <button id="scan-btn" class="ghost">Scan…</button>
+    <button id="process-all-btn" class="primary" title="Process all files currently in inbox">⚡ Process All</button>
+    <button id="scan-btn" class="ghost" title="Scan a directory for EPUB/PDF/DOCX">📁 Scan…</button>
+    <a href="/settings"><button class="ghost" title="Settings">⚙️ Settings</button></a>
+    <button id="theme-toggle" class="ghost" title="Toggle theme">🌙</button>
+    <button id="refresh" class="ghost" title="Refresh state">🔄</button>
+    <span id="last-updated" class="muted"></span>
   </div>
 </header>
+
 <nav class="tabs" role="tablist">
-  <button id="tab-pipeline-btn" class="tab-btn" role="tab" aria-selected="true" aria-controls="tab-pipeline" data-target="pipeline">Pipeline</button>
-  <button id="tab-upload-btn" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-upload" data-target="upload">Upload</button>
-  <button id="tab-profiles-btn" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-profiles" data-target="profiles">Profiles</button>
-  <button id="tab-registry-btn" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-registry" data-target="registry">Registry</button>
+  <button id="tab-pipeline-btn" class="tab-btn active" role="tab" aria-selected="true" data-target="pipeline">📥 Pipeline & Queue</button>
+  <button id="tab-history-btn" class="tab-btn" role="tab" aria-selected="false" data-target="history">📜 Run History <span class="badge-num" id="history-badge">0</span></button>
+  <button id="tab-upload-btn" class="tab-btn" role="tab" aria-selected="false" data-target="upload">📤 Upload & Split</button>
+  <button id="tab-profiles-btn" class="tab-btn" role="tab" aria-selected="false" data-target="profiles">📚 Profiles Library <span class="badge-num" id="profile-badge">0</span></button>
+  <button id="tab-registry-btn" class="tab-btn" role="tab" aria-selected="false" data-target="registry">🛡 Edge Cases (200)</button>
 </nav>
 
 <main>
-  <div id="tab-pipeline" class="tab-pane" role="tabpanel" aria-labelledby="tab-pipeline-btn">
-    <section id="processing-panels">
-      <h2>Processing pipeline</h2>
-      <div class="pipeline">
-        <div class="lane" data-lane="inbox">
-          <h3>📥 Inbox <span class="muted" id="c-inbox">0</span></h3>
-          <ul id="lane-inbox"></ul>
+  <!-- TAB: PIPELINE -->
+  <div id="tab-pipeline" class="tab-pane" role="tabpanel">
+    <div class="notice-banner">
+      <span>💡 Drop EPUBs directly into <code>processing/inbox/</code> for autonomous background ingestion & splitting.</span>
+      <span class="inbox-path-tag" id="inbox-path-display">processing/inbox/</span>
+    </div>
+
+    <div class="pipeline">
+      <!-- INBOX LANE -->
+      <div class="lane" data-lane="inbox">
+        <div class="lane-header">
+          <h3>📥 Inbox <span class="counter" id="c-inbox">0</span></h3>
+          <small class="muted">Pending ingestion</small>
         </div>
-        <div class="lane" data-lane="active">
-          <h3>⚙️ Active <span class="muted" id="c-active">0</span></h3>
-          <ul id="lane-active"></ul>
-        </div>
-        <div class="lane" data-lane="done">
-          <h3>✅ Done <span class="muted" id="c-done">0</span></h3>
-          <ul id="lane-done"></ul>
-        </div>
-        <div class="lane" data-lane="failed">
-          <h3>❌ Failed <span class="muted" id="c-failed">0</span></h3>
-          <ul id="lane-failed"></ul>
-        </div>
+        <div id="lane-inbox" class="lane-items"></div>
       </div>
-      <p class="muted">Drop EPUBs into <code>processing/inbox/</code> for autonomous handling (per settings).</p>
-    </section>
+
+      <!-- ACTIVE LANE -->
+      <div class="lane" data-lane="active">
+        <div class="lane-header">
+          <h3>⚙️ Active <span class="counter" id="c-active">0</span></h3>
+          <small class="muted">Currently processing</small>
+        </div>
+        <div id="lane-active" class="lane-items"></div>
+      </div>
+
+      <!-- DONE LANE -->
+      <div class="lane" data-lane="done">
+        <div class="lane-header">
+          <h3>✅ Completed <span class="counter" id="c-done">0</span></h3>
+          <small class="muted">Ready for download</small>
+        </div>
+        <div id="lane-done" class="lane-items"></div>
+      </div>
+
+      <!-- FAILED LANE -->
+      <div class="lane" data-lane="failed">
+        <div class="lane-header">
+          <h3>❌ Failed <span class="counter" id="c-failed">0</span></h3>
+          <small class="muted">Needs review</small>
+        </div>
+        <div id="lane-failed" class="lane-items"></div>
+      </div>
+    </div>
   </div>
 
-  <div id="tab-upload" class="tab-pane" role="tabpanel" aria-labelledby="tab-upload-btn" hidden>
+  <!-- TAB: RUN HISTORY -->
+  <div id="tab-history" class="tab-pane" role="tabpanel" hidden>
+    <div class="history-controls">
+      <h2>Processing History & Executed Jobs</h2>
+      <div class="filter-row">
+        <input type="text" id="history-search" placeholder="Search book title, filename, publisher..." />
+        <select id="history-filter-status">
+          <option value="">All Statuses</option>
+          <option value="completed">Completed Only</option>
+          <option value="active">Active Only</option>
+          <option value="failed">Failed Only</option>
+        </select>
+        <button id="history-reload-btn" class="ghost">Refresh Table</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table" id="history-table">
+        <thead>
+          <tr>
+            <th>Book Title & File</th>
+            <th>Origin / Publisher</th>
+            <th>Split Method</th>
+            <th>Chunks</th>
+            <th>Total Size</th>
+            <th>Timestamp</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody">
+          <tr><td colspan="9" class="muted text-center">Loading history...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB: UPLOAD -->
+  <div id="tab-upload" class="tab-pane" role="tabpanel" hidden>
     <section id="upload-zone">
       <div id="drop">
-        <p><strong>Drop EPUBs here</strong> or <label class="file-label">browse<input id="files" type="file" accept=".epub,.pdf,.docx,.doc" multiple hidden/></label></p>
-        <small>Auto-creates profile JSON in <code>profiles/</code> on upload.</small>
+        <div class="drop-icon">📤</div>
+        <p><strong>Drop EPUB, PDF, or DOCX here</strong> or <label class="file-label">browse files<input id="files" type="file" accept=".epub,.pdf,.docx,.doc" multiple hidden/></label></p>
+        <small>Auto-creates profile JSON in <code>profiles/</code> and queues to <code>processing/inbox/</code></small>
       </div>
-      <div id="upload-progress"></div>
+      <div id="upload-progress" class="upload-status"></div>
     </section>
+
     <section id="uploaded" hidden>
-      <h2>Last upload</h2>
+      <h2>Uploaded Items</h2>
       <div id="upload-list" class="cards"></div>
     </section>
-    <section id="split-panel" hidden>
-      <h2>Split</h2>
+
+    <section id="split-panel" class="split-card" hidden>
+      <h2>Split Selected Book</h2>
       <div class="row">
-        <label>Max chunk MB: <input id="max-mb" type="number" min="5" value="50"/></label>
-        <button id="split-btn">Split (size)</button>
-        <button id="split-toc-btn" class="ghost">Split by TOC</button>
+        <label>Max chunk MB: <input id="max-mb" type="number" min="5" max="200" value="50"/></label>
+        <button id="split-btn" class="primary">⚡ Split (by Size: 50MB)</button>
+        <button id="split-toc-btn" class="ghost">📑 Split by Top-Level TOC</button>
       </div>
       <div id="split-result"></div>
     </section>
   </div>
 
-  <div id="tab-profiles" class="tab-pane" role="tabpanel" aria-labelledby="tab-profiles-btn" hidden>
-    <section>
-      <h2>Profiles <span class="muted" id="profile-count"></span></h2>
-      <div id="profiles" class="cards"></div>
-    </section>
+  <!-- TAB: PROFILES -->
+  <div id="tab-profiles" class="tab-pane" role="tabpanel" hidden>
+    <div class="history-controls">
+      <h2>Analyzed Book Profiles <span class="muted" id="profile-count"></span></h2>
+      <input type="text" id="profile-search" placeholder="Filter profiles by title or publisher..." />
+    </div>
+    <div id="profiles" class="cards"></div>
   </div>
 
-  <div id="tab-registry" class="tab-pane" role="tabpanel" aria-labelledby="tab-registry-btn" hidden>
+  <!-- TAB: REGISTRY -->
+  <div id="tab-registry" class="tab-pane" role="tabpanel" hidden>
     <section>
-      <h2>Edge Case Registry</h2>
-      <details><summary>EPUB (75 cases)</summary><pre id="ec-epub"></pre></details>
-      <details><summary>PDF (49 cases)</summary><pre id="ec-pdf"></pre></details>
-      <details><summary>DOCX (40 cases)</summary><pre id="ec-docx"></pre></details>
-      <details><summary>Accessibility (36 cases)</summary><pre id="ec-a11y"></pre></details>
+      <h2>Comprehensive Accessibility & Document Edge Cases</h2>
+      <p class="muted">200 document format & assistive technology edge cases cataloged and verified.</p>
+      <details open><summary>📖 EPUB Edge Cases (75 cases)</summary><pre id="ec-epub"></pre></details>
+      <details><summary>📄 PDF Edge Cases (49 cases)</summary><pre id="ec-pdf"></pre></details>
+      <details><summary>📝 DOCX Edge Cases (40 cases)</summary><pre id="ec-docx"></pre></details>
+      <details><summary>♿ Accessibility Edge Cases (36 cases)</summary><pre id="ec-a11y"></pre></details>
     </section>
   </div>
 </main>
 
-<footer><span id="health"></span></footer>
+<!-- CHUNKS MODAL / DRAWER -->
+<div id="chunks-modal" class="modal-backdrop" hidden>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h3 id="modal-title">Generated Chunks</h3>
+        <small class="muted" id="modal-subtitle">Inspection & Download</small>
+      </div>
+      <button id="modal-close" class="close-btn">&times;</button>
+    </div>
+    <div class="modal-actions-bar">
+      <span id="modal-stats" class="badge ok">0 chunks</span>
+      <a id="modal-zip-link" href="#" class="download-zip-btn">⬇ Download All as ZIP</a>
+    </div>
+    <div class="modal-body">
+      <ul id="modal-chunk-list" class="chunk-item-list"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<footer>
+  <div class="footer-content">
+    <span>Boundless Engine</span> ·
+    <span id="footer-status-pill">Status: Checking</span> ·
+    <span>Port <span id="footer-port">10200</span></span> ·
+    <span>Natural Reader 50MB Limit Preserved</span> ·
+    <span id="health"></span>
+  </div>
+</footer>
+
 <script src="/static/app.js"></script>
 </body>
 </html>

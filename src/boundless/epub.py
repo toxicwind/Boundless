@@ -107,12 +107,18 @@ class EpubSplitter:
             for d in chunk_dirs:
                 abs_d = os.path.join(extract_dir, d)
                 if os.path.exists(abs_d):
-                    for root2, dirs2, files2 in os.walk(abs_d):
-                        rel_root = os.path.relpath(root2, extract_dir).replace("\\", "/")
-                        for f2 in files2:
-                            rel_path = posixpath.join(rel_root, f2) if rel_root else f2
-                            if not rel_path.lower().endswith((".xhtml", ".html", ".htm", ".opf")):
-                                chunk_assets.add(rel_path)
+                    if d in ("OPS", "OEBPS", "EPUB"):
+                        for item in os.listdir(abs_d):
+                            item_p = os.path.join(abs_d, item)
+                            if os.path.isfile(item_p) and not item.lower().endswith((".xhtml", ".html", ".htm", ".opf")):
+                                chunk_assets.add(posixpath.join(d, item))
+                    else:
+                        for root2, dirs2, files2 in os.walk(abs_d):
+                            rel_root = os.path.relpath(root2, extract_dir).replace("\\", "/")
+                            for f2 in files2:
+                                rel_path = posixpath.join(rel_root, f2) if rel_root else f2
+                                if not rel_path.lower().endswith((".xhtml", ".html", ".htm", ".opf")):
+                                    chunk_assets.add(rel_path)
 
             keep_hrefs = set(files) | chunk_assets
             keep_ids = set()
@@ -150,14 +156,14 @@ class EpubSplitter:
                 meta_dir = os.path.join(extract_dir, "META-INF")
                 if os.path.exists(meta_dir):
                     for mf in os.listdir(meta_dir):
-                        zout.write(os.path.join(meta_dir, mf), "META-INF/" + mf)
+                        zout.write(os.path.join(meta_dir, mf), "META-INF/" + mf, compress_type=zipfile.ZIP_DEFLATED)
 
-                zout.writestr(opf_rel, etree.tostring(chunk_opf, encoding="utf-8", xml_declaration=True))
+                zout.writestr(opf_rel, etree.tostring(chunk_opf, encoding="utf-8", xml_declaration=True), compress_type=zipfile.ZIP_DEFLATED)
 
                 for href in keep_hrefs:
                     fp = os.path.join(extract_dir, href)
                     if os.path.exists(fp):
-                        zout.write(fp, href)
+                        zout.write(fp, href, compress_type=zipfile.ZIP_DEFLATED)
 
             size = os.path.getsize(out_path)
             meta = ChunkMetadata(
@@ -268,14 +274,17 @@ class EpubSplitter:
         return asset_map
 
     def _discover_shared_assets(self, extract_dir: str) -> Set[str]:
-        """Discover shared assets (CSS, images, fonts, etc.)."""
+        """Discover shared styling, fonts, and scripts."""
         shared = set()
+        shared_patterns = ("css", "styles", "style", "fonts", "font", "typefaces", "scripts")
         for root, dirs, files in os.walk(extract_dir):
             rel_root = os.path.relpath(root, extract_dir).replace("\\", "/")
             for f in files:
                 rel_path = posixpath.join(rel_root, f) if rel_root else f
                 rel_lower = rel_path.lower()
-                if any(pat in rel_lower for pat in SHARED_ASSET_PATTERNS):
+                if any(pat in rel_lower for pat in shared_patterns):
+                    shared.add(rel_path)
+                elif any(f.lower().endswith(ext) for ext in (".css", ".woff", ".woff2", ".ttf", ".otf", ".js")):
                     shared.add(rel_path)
         return shared
 

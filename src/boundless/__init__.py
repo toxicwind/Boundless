@@ -9,6 +9,11 @@ from .profile import (
     profile_epub, profile_many, profile_dir,
     ensure_profile, auto_create_profiles,
 )
+from .db import (
+    init_db, create_job, update_job_progress, complete_job, fail_job,
+    get_job, list_jobs, delete_job, record_inbox_item, remove_inbox_item,
+    list_inbox_items, backfill_from_disk,
+)
 try:
     from .toc_split import split_epub_by_toc, load_book, locate_top_levels
     from .toc_parse import TocNode, unique_names, parse_epub3_toc, parse_ncx_toc, sanitize_filename
@@ -40,4 +45,7 @@ __all__ = [
     "split_epub_by_toc", "load_book", "locate_top_levels",
     "TocNode", "unique_names", "parse_epub3_toc", "parse_ncx_toc", "sanitize_filename",
     "build_one", "crop_xhtml",
+    "init_db", "create_job", "update_job_progress", "complete_job", "fail_job",
+    "get_job", "list_jobs", "delete_job", "record_inbox_item", "remove_inbox_item",
+    "list_inbox_items", "backfill_from_disk",
 ]

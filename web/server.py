@@ -1,5 +1,6 @@
 """
-web/server.py — boundless boundless web UI (FastAPI, default port 10200).
+web/server.py — boundless web UI (FastAPI, default port 10200).
+Autonomous inbox processing, persistent SQLite job engine, hot-reloading by default.
 
 Layout (boundless, never /mnt):
   boundless/
@@ -7,13 +8,15 @@ Layout (boundless, never /mnt):
     processing/active/  # currently being processed
     processing/done/    # completed splits
     processing/failed/  # failed/cancelled
+    processing/boundless.db # SQLite job history and inbox store
     profiles/           # auto-created JSON profiles
     settings.json       # editable from /settings
 
-Endpoints (all boundless path-bounded):
+Endpoints:
   GET  /                       — UI
   GET  /settings               — settings UI
   GET  /api/health             — health + counts
+  GET  /api/status             — full system status + watcher heartbeat + DB counts
   GET  /api/settings           — read settings.json
   PUT  /api/settings           — update settings.json
   POST /api/upload             — upload + auto-profile
@@ -22,15 +25,23 @@ Endpoints (all boundless path-bounded):
   POST /api/split/{id}         — size-based split
   POST /api/split-toc/{id}     — top-level TOC split (preserves assets)
   GET  /api/outputs/{sub}/{f}  — download a chunk
+  GET  /api/outputs/{sub}/zip  — download all chunks as ZIP
+  GET  /api/outputs/{sub}      — inspect chunks in done folder
   POST /api/scan               — scan a boundless directory
   GET  /api/profiles           — list profiles
   DEL  /api/profiles/{file}    — delete profile
   GET  /api/processing         — list files in inbox/active/done/failed
   POST /api/process/{file}     — move inbox file → active → done/failed
+  GET  /api/jobs               — list jobs from SQLite
+  GET  /api/jobs/{id}          — get job details + chunks + logs
+  DEL  /api/jobs/{id}          — delete job record
+  POST /api/jobs/retry/{id}    — re-run a job
+  GET  /api/inbox              — rich metadata of inbox files
+  DEL  /api/inbox/{filename}   — remove file from inbox
   GET  /api/edge-cases         — full EdgeCaseRegistry
 """
 from __future__ import annotations
-import os, json, shutil, time, threading, queue
+import os, sys, json, shutil, time, threading, queue, io, zipfile
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
@@ -42,14 +53,22 @@ import uvicorn
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-if str(SRC) not in __import__("sys").path:
-    __import__("sys").path.insert(0, str(SRC))
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from boundless import (
     profile_epub, ensure_profile, auto_create_profiles,
     EpubSplitter, PdfSplitter, DocxSplitter,
     ChunkMetadata, SplitReport, A11yLogger,
     DEFAULT_MAX_SIZE_MB, EdgeCaseRegistry,
+)
+from boundless.deps import (
+    HAS_LXML, HAS_PYMUPDF, HAS_EBOOKLIB, HAS_PYTHON_DOCX,
+)
+from boundless.db import (
+    init_db, create_job, update_job_progress, complete_job, fail_job,
+    get_job, list_jobs, delete_job, record_inbox_item, remove_inbox_item,
+    list_inbox_items, backfill_from_disk,
 )
 
 # ---- .env loader (boundless, no dotenv dep) ----
@@ -74,14 +93,11 @@ INBOX_DIR = PROCESSING_DIR / "inbox"
 ACTIVE_DIR = PROCESSING_DIR / "active"
 DONE_DIR = PROCESSING_DIR / "done"
 FAILED_DIR = PROCESSING_DIR / "failed"
+DB_PATH = PROCESSING_DIR / "boundless.db"
 SETTINGS_PATH = ROOT / "settings.json"
+
 for _d in (INBOX_DIR, ACTIVE_DIR, DONE_DIR, FAILED_DIR, PROFILES_DIR, PROCESSING_DIR):
     _d.mkdir(parents=True, exist_ok=True)
-
-app = FastAPI(title="Boundless", version="2.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-WEB_DIR = Path(__file__).resolve().parent
-app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 # ---- Settings (boundless JSON, editable from frontend) ----
 DEFAULT_SETTINGS: Dict[str, Any] = {
@@ -99,6 +115,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "theme": "dark",
     "log_level": "info",
     "open_browser_after_start": True,
+    "hot_reload": True,
     "host": HOST,
     "port": PORT,
 }
@@ -132,33 +149,96 @@ def _is_stable(p: Path) -> bool:
         return False
 
 def _process_one(file: Path, settings: dict) -> Dict[str, Any]:
-    """Process a single file: profile, then optionally split."""
+    """Process a single file: profile, then optionally split. Records to SQLite."""
     log = []
+    t0 = time.time()
+    job = None
     try:
+        prof_data = {}
         if settings.get("auto_profile_on_upload", True):
             p = ensure_profile(file, PROFILES_DIR)
+            prof_data = json.loads(p.read_text(encoding="utf-8"))
             log.append(f"profile → {p.name}")
+        
+        origin = prof_data.get("origin", {})
+        title = prof_data.get("title") or file.stem.replace("_", " ").title()
+        creator = prof_data.get("creator") or "Unknown"
+        publisher = prof_data.get("publisher") or origin.get("publisher") or "Unknown"
+        nr_status = prof_data.get("nr_status") or "ok"
+
+        # Update inbox in DB
+        mtime = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(file.stat().st_mtime))
+        record_inbox_item(
+            DB_PATH,
+            filename=file.name,
+            size=file.stat().st_size,
+            modified_at=mtime,
+            title=title,
+            creator=creator,
+            publisher=publisher,
+            nr_status=nr_status,
+            origin=origin,
+            profile_path=str(PROFILES_DIR / f"{file.stem}.json") if (PROFILES_DIR / f"{file.stem}.json").exists() else None,
+        )
+
         if settings.get("auto_split_on_upload", False):
             method = settings.get("default_split_method", "size")
-            out = DONE_DIR / f"{file.stem}_{method}"
+            max_mb = settings.get("default_max_size_mb", MAX_SIZE_MB)
+            job = create_job(
+                DB_PATH,
+                filename=file.name,
+                file_path=str(file),
+                file_size=file.stat().st_size,
+                method=method,
+                max_size_mb=max_mb,
+                book_title=title,
+                creator=creator,
+                publisher=publisher,
+                origin_pipeline=origin.get("pipeline", ""),
+                nr_status=nr_status,
+                profile=prof_data,
+            )
+            # move to active
+            active = ACTIVE_DIR / file.name
+            if active.exists():
+                active = ACTIVE_DIR / f"{file.stem}_{int(time.time())}{file.suffix}"
+            shutil.move(str(file), str(active))
+            log.append(f"active → {active.name}")
+            update_job_progress(DB_PATH, job["id"], 40, "splitting", f"Moved to active: {active.name}")
+
+            out = DONE_DIR / f"{active.stem}_{method}"
+            chunks = []
             if method == "toc":
-                try:
-                    from boundless import split_epub_by_toc
-                    r = split_epub_by_toc(file, out)
-                    log.append(f"toc split → {r['count']} sections in {out.name}")
-                except Exception as e:
-                    log.append(f"toc split skipped: {e}")
+                from boundless import split_epub_by_toc
+                r = split_epub_by_toc(active, out)
+                log.append(f"toc split → {r['count']} sections in {out.name}")
+                for s in r.get("sections", []):
+                    cp = out / s
+                    sz = cp.stat().st_size if cp.exists() else 0
+                    chunks.append({"name": s, "title": Path(s).stem, "size": sz, "size_mb": round(sz/1024/1024, 2), "url": f"/api/outputs/{out.name}/{s}"})
             else:
-                sp = EpubSplitter(max_size_bytes=settings["default_max_size_mb"]*1024*1024, logger=A11yLogger())
-                rep = sp.split(str(file), str(out))
+                sp = _splitter_for(active, max_mb)
+                rep = sp.split(str(active), str(out))
                 log.append(f"size split → {rep.chunk_count} chunks in {out.name}")
-        # move to done
-        dest = DONE_DIR / file.name
-        if dest.exists():
-            dest = DONE_DIR / f"{file.stem}_{int(time.time())}{file.suffix}"
-        shutil.move(str(file), str(dest))
-        return {"ok": True, "log": log, "moved_to": str(dest)}
+                for c in rep.chunks:
+                    cf_name = f"{c.title}.epub"
+                    chunks.append({"name": cf_name, "title": c.title, "size": c.byte_size, "size_mb": round(c.byte_size/1024/1024, 2), "url": f"/api/outputs/{out.name}/{cf_name}"})
+
+            # move original to done
+            dest = DONE_DIR / active.name
+            if dest.exists():
+                dest = DONE_DIR / f"{active.stem}_{int(time.time())}{active.suffix}"
+            shutil.move(str(active), str(dest))
+            log.append(f"done → {dest.name}")
+            remove_inbox_item(DB_PATH, file.name)
+            total_out = sum(c["size"] for c in chunks)
+            complete_job(DB_PATH, job["id"], str(out), chunks, total_out, log, time.time() - t0)
+            return {"ok": True, "log": log, "moved_to": str(dest)}
+        else:
+            return {"ok": True, "log": log, "profiled": True}
     except Exception as e:
+        if job:
+            fail_job(DB_PATH, job["id"], str(e), log)
         try:
             shutil.move(str(file), str(FAILED_DIR / file.name))
         except Exception:
@@ -170,8 +250,9 @@ def _watcher_loop():
     seen: Dict[str, int] = {}
     while not _watcher_event.is_set():
         try:
-            if settings.get("auto_watch_inbox", True):
-                for f in INBOX_DIR.iterdir():
+            settings = _load_settings()
+            if settings.get("auto_watch_inbox", True) and INBOX_DIR.exists():
+                for f in list(INBOX_DIR.iterdir()):
                     if not f.is_file():
                         continue
                     key = f.name
@@ -196,9 +277,16 @@ def start_watcher():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db(DB_PATH)
+    backfill_from_disk(DB_PATH, PROCESSING_DIR, PROFILES_DIR)
     start_watcher()
     yield
-    _watcher_event.set()  # graceful shutdown signal
+    _watcher_event.set()
+
+app = FastAPI(title="Boundless", version="2.0.0", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+WEB_DIR = Path(__file__).resolve().parent
+app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 # ---- Path-bounded helpers ----
 def _resolve_in(p: Path) -> Path:
@@ -230,6 +318,47 @@ def _check_boundless(p: Path):
         raise HTTPException(403, "Boundary: /mnt access denied")
     return p
 
+def _system_status_payload() -> Dict[str, Any]:
+    inbox_files = [f for f in INBOX_DIR.iterdir() if f.is_file()] if INBOX_DIR.exists() else []
+    active_files = list(ACTIVE_DIR.iterdir()) if ACTIVE_DIR.exists() else []
+    done_items = list(DONE_DIR.iterdir()) if DONE_DIR.exists() else []
+    failed_items = list(FAILED_DIR.iterdir()) if FAILED_DIR.exists() else []
+    profiles = list(PROFILES_DIR.glob("*.json")) if PROFILES_DIR.exists() else []
+    all_jobs = list_jobs(DB_PATH) if DB_PATH.exists() else []
+    
+    settings = _load_settings()
+    is_watcher_running = _watcher_thread is not None and _watcher_thread.is_alive()
+
+    return {
+        "status": "ok",
+        "healthy": True,
+        "port": PORT,
+        "host": HOST,
+        "max_size_mb": MAX_SIZE_MB,
+        "processing_dir": str(PROCESSING_DIR),
+        "profiles_dir": str(PROFILES_DIR),
+        "inbox": len(inbox_files),
+        "active": len(active_files),
+        "done": len(done_items),
+        "failed": len(failed_items),
+        "profiles": len(profiles),
+        "jobs_total": len(all_jobs),
+        "jobs_completed": sum(1 for j in all_jobs if j.get("status") == "completed"),
+        "version": "2.0.0",
+        "watcher": {
+            "running": is_watcher_running,
+            "auto_watch": settings.get("auto_watch_inbox", True),
+            "auto_split": settings.get("auto_split_on_upload", False),
+        },
+        "system": {
+            "has_lxml": HAS_LXML,
+            "has_pymupdf": HAS_PYMUPDF,
+            "has_ebooklib": HAS_EBOOKLIB,
+            "has_docx": HAS_PYTHON_DOCX,
+            "hot_reload": settings.get("hot_reload", True),
+        },
+    }
+
 # ---- Routes ----
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -245,18 +374,11 @@ async def favicon():
 
 @app.get("/api/health")
 async def health():
-    return {
-        "status": "ok", "port": PORT, "host": HOST,
-        "max_size_mb": MAX_SIZE_MB,
-        "processing_dir": str(PROCESSING_DIR),
-        "profiles_dir": str(PROFILES_DIR),
-        "inbox": len(list(INBOX_DIR.iterdir())),
-        "active": len(list(ACTIVE_DIR.iterdir())),
-        "done": len(list(DONE_DIR.iterdir())),
-        "failed": len(list(FAILED_DIR.iterdir())),
-        "profiles": len(list(PROFILES_DIR.glob("*.json"))),
-        "version": "2.0.0",
-    }
+    return _system_status_payload()
+
+@app.get("/api/status")
+async def status():
+    return _system_status_payload()
 
 @app.get("/api/settings")
 async def get_settings():
@@ -268,6 +390,64 @@ async def update_settings(s: dict):
     if merged.get("auto_watch_inbox", True):
         start_watcher()
     return merged
+
+@app.get("/api/jobs")
+async def get_jobs_route(limit: int = 50, offset: int = 0, status: Optional[str] = None):
+    jobs = list_jobs(DB_PATH, limit=limit, offset=offset, status=status)
+    return {"jobs": jobs, "count": len(jobs)}
+
+@app.get("/api/jobs/{job_id}")
+async def get_job_route(job_id: str):
+    j = get_job(DB_PATH, job_id)
+    if not j:
+        raise HTTPException(404, "Job not found")
+    return j
+
+@app.delete("/api/jobs/{job_id}")
+async def delete_job_route(job_id: str):
+    ok = delete_job(DB_PATH, job_id)
+    if not ok:
+        raise HTTPException(404, "Job not found")
+    return {"deleted": job_id}
+
+@app.get("/api/inbox")
+async def get_inbox():
+    items = list_inbox_items(DB_PATH)
+    # Also verify with physical files
+    filenames_in_db = {it["filename"] for it in items}
+    if INBOX_DIR.exists():
+        for f in INBOX_DIR.iterdir():
+            if f.is_file() and f.name not in filenames_in_db:
+                mtime = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(f.stat().st_mtime))
+                record_inbox_item(
+                    DB_PATH,
+                    filename=f.name,
+                    size=f.stat().st_size,
+                    modified_at=mtime,
+                    title=f.stem.replace("_", " ").title(),
+                )
+        items = list_inbox_items(DB_PATH)
+    return {"items": items, "count": len(items)}
+
+@app.delete("/api/inbox/{filename}")
+async def delete_inbox_file(filename: str):
+    p = _resolve_in(INBOX_DIR / filename)
+    if p.exists() and p.is_file():
+        p.unlink()
+        remove_inbox_item(DB_PATH, filename)
+        return {"deleted": filename}
+    raise HTTPException(404, "File not found")
+
+@app.post("/api/inbox/process-all")
+async def process_all_inbox():
+    settings = _load_settings()
+    results = []
+    if INBOX_DIR.exists():
+        for f in sorted(INBOX_DIR.iterdir()):
+            if f.is_file():
+                r = _process_one(f, {**settings, "auto_split_on_upload": True})
+                results.append({"file": f.name, "result": r})
+    return {"processed": len(results), "results": results}
 
 @app.post("/api/upload")
 async def upload(files: List[UploadFile] = File(...)):
@@ -284,6 +464,19 @@ async def upload(files: List[UploadFile] = File(...)):
         if settings.get("auto_profile_on_upload", True):
             prof_path = ensure_profile(dest, PROFILES_DIR)
             prof = json.loads(prof_path.read_text(encoding="utf-8"))
+            mtime = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(dest.stat().st_mtime))
+            record_inbox_item(
+                DB_PATH,
+                filename=dest.name,
+                size=dest.stat().st_size,
+                modified_at=mtime,
+                title=prof.get("title") or dest.stem.replace("_", " ").title(),
+                creator=prof.get("creator") or "Unknown",
+                publisher=prof.get("publisher") or prof.get("origin", {}).get("publisher") or "Unknown",
+                nr_status=prof.get("nr_status") or "ok",
+                origin=prof.get("origin", {}),
+                profile_path=str(prof_path),
+            )
         out.append({
             "upload_id": dest.name,
             "filename": f.filename,
@@ -311,30 +504,59 @@ async def profile_ensure(upload_id: str):
 
 @app.post("/api/process/{upload_id}")
 async def process_upload(upload_id: str, method: str = "size", max_size_mb: Optional[int] = None):
-    """Move inbox → active → run split → done. Returns log + result."""
+    """Move inbox → active → run split → done. Returns log + result and records to SQLite."""
     src = _resolve_in(INBOX_DIR / upload_id)
     if not src.exists():
         raise HTTPException(404)
     settings = _load_settings()
     max_mb = max_size_mb or settings.get("default_max_size_mb", MAX_SIZE_MB)
     log = []
+    t0 = time.time()
+    active = None
+    job = None
     try:
         # profile
         prof = ensure_profile(src, PROFILES_DIR)
+        prof_data = json.loads(prof.read_text(encoding="utf-8"))
         log.append(f"profile → {prof.name}")
+        origin = prof_data.get("origin", {})
+        title = prof_data.get("title") or src.stem.replace("_", " ").title()
+
+        job = create_job(
+            DB_PATH,
+            filename=src.name,
+            file_path=str(src),
+            file_size=src.stat().st_size,
+            method=method,
+            max_size_mb=max_mb,
+            book_title=title,
+            creator=prof_data.get("creator"),
+            publisher=prof_data.get("publisher") or origin.get("publisher"),
+            origin_pipeline=origin.get("pipeline", ""),
+            nr_status=prof_data.get("nr_status", "ok"),
+            profile=prof_data,
+        )
+
         # move to active
         active = ACTIVE_DIR / src.name
         if active.exists():
             active = ACTIVE_DIR / f"{src.stem}_{int(time.time())}{src.suffix}"
         shutil.move(str(src), str(active))
         log.append(f"active → {active.name}")
+        update_job_progress(DB_PATH, job["id"], 30, "active", f"Moved to {active.name}")
+
         # split
         out = DONE_DIR / f"{active.stem}_{method}"
+        chunks_info = []
         if method == "toc":
             from boundless import split_epub_by_toc
             r = split_epub_by_toc(active, out)
             log.append(f"toc split → {r['count']} sections in {out.name}")
             result = r
+            for s in r.get("sections", []):
+                cp = out / s
+                sz = cp.stat().st_size if cp.exists() else 0
+                chunks_info.append({"name": s, "title": Path(s).stem, "size": sz, "size_mb": round(sz/1024/1024, 2), "url": f"/api/outputs/{out.name}/{s}"})
         else:
             sp = _splitter_for(active, max_mb)
             rep = sp.split(str(active), str(out))
@@ -346,16 +568,26 @@ async def process_upload(upload_id: str, method: str = "size", max_size_mb: Opti
                 "chunks": [{"title": c.title, "size": c.byte_size, "spine": c.spine_files, "asset_count": len(c.asset_files)} for c in rep.chunks],
                 "output_dir": str(out),
             }
+            for c in rep.chunks:
+                cf_name = f"{c.title}.epub"
+                chunks_info.append({"name": cf_name, "title": c.title, "size": c.byte_size, "size_mb": round(c.byte_size/1024/1024, 2), "url": f"/api/outputs/{out.name}/{cf_name}"})
+
         # move to done
         dest = DONE_DIR / active.name
         if dest.exists():
             dest = DONE_DIR / f"{active.stem}_{int(time.time())}{active.suffix}"
         shutil.move(str(active), str(dest))
         log.append(f"done → {dest.name}")
-        return {"ok": True, "log": log, "result": result}
+        remove_inbox_item(DB_PATH, upload_id)
+        
+        total_out = sum(c["size"] for c in chunks_info)
+        complete_job(DB_PATH, job["id"], str(out), chunks_info, total_out, log, time.time() - t0)
+        return {"ok": True, "log": log, "result": result, "job_id": job["id"], "chunks": chunks_info}
     except Exception as e:
+        if job:
+            fail_job(DB_PATH, job["id"], str(e), log)
         try:
-            shutil.move(str(active) if active.exists() else str(src), str(FAILED_DIR / (active.name if active.exists() else src.name)))
+            shutil.move(str(active) if (active and active.exists()) else str(src), str(FAILED_DIR / (active.name if (active and active.exists()) else src.name)))
         except Exception:
             pass
         log.append(f"FAILED: {e}")
@@ -391,6 +623,50 @@ async def split_size(upload_id: str, max_size_mb: int = MAX_SIZE_MB, output_subd
         "output_dir": str(out_dir),
     }
 
+@app.get("/api/outputs/{subdir}/zip")
+async def fetch_output_zip(subdir: str):
+    target_dir = (DONE_DIR / subdir).resolve()
+    if not str(target_dir).startswith(str(DONE_DIR.resolve())):
+        raise HTTPException(403, "Path traversal denied")
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(404, f"Output directory {subdir} not found")
+    
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(target_dir.rglob("*")):
+            if f.is_file():
+                rel = f.relative_to(target_dir)
+                zf.write(f, str(rel))
+    mem.seek(0)
+    data = mem.getvalue()
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{subdir}_chunks.zip"',
+            "Content-Length": str(len(data)),
+        }
+    )
+
+@app.get("/api/outputs/{subdir}")
+async def list_output_chunks(subdir: str):
+    target_dir = (DONE_DIR / subdir).resolve()
+    if not str(target_dir).startswith(str(DONE_DIR.resolve())):
+        raise HTTPException(403, "Path traversal denied")
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(404, "Directory not found")
+    chunks = []
+    for f in sorted(target_dir.glob("*.epub")):
+        sz = f.stat().st_size
+        chunks.append({
+            "name": f.name,
+            "title": f.stem.replace("_", " ").title(),
+            "size": sz,
+            "size_mb": round(sz / 1024 / 1024, 2),
+            "url": f"/api/outputs/{subdir}/{f.name}",
+        })
+    return {"subdir": subdir, "count": len(chunks), "chunks": chunks}
+
 @app.get("/api/outputs/{subdir}/{file}")
 async def fetch_output(subdir: str, file: str):
     p = (DONE_DIR / subdir / file).resolve()
@@ -402,7 +678,6 @@ async def fetch_output(subdir: str, file: str):
     mt = "application/epub+zip" if p.suffix == ".epub" else "application/octet-stream"
 
     def _iter():
-        # Stream 64KB chunks — never loads whole file in memory
         with open(p, "rb") as f:
             while chunk := f.read(65536):
                 yield chunk
@@ -420,11 +695,20 @@ async def fetch_output(subdir: str, file: str):
 async def processing_state():
     def _list(d: Path):
         out = []
+        if not d.exists():
+            return out
         for f in sorted(d.iterdir()):
             if f.is_file():
                 out.append({"name": f.name, "size": f.stat().st_size, "modified": f.stat().st_mtime})
             elif f.is_dir():
-                out.append({"name": f.name, "type": "dir", "size": sum(c.stat().st_size for c in f.rglob('*') if c.is_file())})
+                sub_count = len(list(f.glob("*.epub")))
+                out.append({
+                    "name": f.name,
+                    "type": "dir",
+                    "chunk_count": sub_count,
+                    "size": sum(c.stat().st_size for c in f.rglob('*') if c.is_file()),
+                    "zip_url": f"/api/outputs/{f.name}/zip",
+                })
         return out
     return {
         "inbox": _list(INBOX_DIR),
@@ -455,7 +739,7 @@ async def scan(directory: str):
 
 @app.get("/api/profiles")
 async def list_profiles():
-    files = sorted(PROFILES_DIR.glob("*.json"))
+    files = sorted(PROFILES_DIR.glob("*.json")) if PROFILES_DIR.exists() else []
     profiles = []
     for f in files:
         try:
@@ -492,9 +776,21 @@ async def edge_cases():
     }
 
 def run():
-    print(f"boundless boundless web UI on http://{HOST}:{PORT}")
+    s = _load_settings()
+    host = s.get("host", HOST)
+    port = int(s.get("port", PORT))
+    reload = s.get("hot_reload", True)
+    print(f"Boundless Web UI on http://{host}:{port} (hot_reload={reload})")
     print(f"Drop EPUBs into {INBOX_DIR} for autonomous processing")
-    uvicorn.run("web.server:app", host=HOST, port=PORT, reload=False, log_level="info")
+    uvicorn.run(
+        "web.server:app",
+        host=host,
+        port=port,
+        reload=reload,
+        reload_dirs=[str(SRC), str(WEB_DIR)],
+        reload_includes=["*.py", "*.html", "*.css", "*.js", "*.json"],
+        log_level=s.get("log_level", "info"),
+    )
 
 if __name__ == "__main__":
     run()
