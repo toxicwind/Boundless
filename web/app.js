@@ -11,16 +11,26 @@ async function api(p, opts={}) {
 
 async function refresh() {
   try {
-    const h = await api('/api/health');
-    $('#health').textContent = `Port ${h.port} · ${h.profiles} profiles · inbox=${h.inbox} active=${h.active} done=${h.done} failed=${h.failed} · v${h.version}`;
-  } catch (e) { $('#health').textContent = 'unhealthy'; }
+    const data = await api('/api/status');
+    $('#last-updated').textContent = `Last: ${new Date().toLocaleTimeString()}`;
+    $('#health').textContent = 'healthy';
+  } catch (e) {
+    $('#health').textContent = 'unhealthy';
+    console.error(e);
+  }
   try {
     const ps = await api('/api/processing');
+    $('#c-inbox').textContent = ps.inbox.length;
+    $('#c-active').textContent = ps.active.length;
+    $('#c-done').textContent = ps.done.length;
+    $('#c-failed').textContent = ps.failed.length;
     renderLane('inbox', ps.inbox);
     renderLane('active', ps.active);
     renderLane('done', ps.done);
     renderLane('failed', ps.failed);
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+  }
   try {
     const {profiles} = await api('/api/profiles');
     $('#profile-count').textContent = `(${profiles.length})`;
@@ -31,12 +41,16 @@ async function refresh() {
 function renderLane(lane, items) {
   $(`#c-${lane}`).textContent = items.length;
   const ul = $(`#lane-${lane}`);
-  ul.innerHTML = items.map(it => {
-    const size = it.type === 'dir' ? `${(it.size/1024/1024).toFixed(1)}MB` : `${(it.size/1024/1024).toFixed(1)}MB`;
-    return `<li><code>${esc(it.name)}</code> <span class="muted">${size}</span>` +
-      (lane === 'inbox' ? ` <button onclick="processInbox('${esc(it.name)}')">Process</button>` : '') +
-      `</li>`;
-  }).join('');
+  if (items.length === 0) {
+    ul.innerHTML = `<li class="muted">No items in ${lane}</li>`;
+  } else {
+    ul.innerHTML = items.map(it => {
+      const size = `${(it.size/1024/1024).toFixed(1)}MB`;
+      return `<li><code>${esc(it.name)}</code> <span class="muted">${size}</span>` +
+        (lane === 'inbox' ? ` <button onclick="processInbox('${esc(it.name)}')">Process</button>` : '') +
+        `</li>`;
+    }).join('');
+  }
 }
 
 async function processInbox(name) {
@@ -188,5 +202,18 @@ $$('.tab-btn').forEach(btn => {
     btn.setAttribute('aria-selected', 'true');
     $('#tab-' + btn.dataset.target).hidden = false;
   });
+});
+
+// Theme Toggle
+const savedTheme = localStorage.getItem('theme') || 'dark';
+document.body.setAttribute('data-theme', savedTheme);
+$('#theme-toggle').innerText = savedTheme === 'dark' ? '☀️' : '🌙';
+
+$('#theme-toggle').addEventListener('click', () => {
+    const isDark = document.body.getAttribute('data-theme') === 'dark';
+    const newTheme = isDark ? 'light' : 'dark';
+    document.body.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    $('#theme-toggle').innerText = isDark ? '🌙' : '☀️';
 });
 $('.tab-btn').click();

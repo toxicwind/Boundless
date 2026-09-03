@@ -1,7 +1,7 @@
 {
   "auto_watch_inbox": true,
   "auto_profile_on_upload": true,
-  "auto_split_on_upload": true,
+  "auto_split_on_upload": false,
   "default_max_size_mb": 50,
   "max_size_mb_options": [
     25,
