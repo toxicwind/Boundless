@@ -379,11 +379,6 @@ async def health():
 @app.get("/api/status")
 async def status():
     return _system_status_payload()
-
-@app.get("/api/settings")
-async def get_settings():
-    return _load_settings()
-
 @app.put("/api/settings")
 async def update_settings(s: dict):
     merged = _save_settings(s)
@@ -602,7 +597,8 @@ async def split_toc(upload_id: str, output_subdir: Optional[str] = None):
     src = _resolve_in(INBOX_DIR / upload_id)
     if not src.exists():
         raise HTTPException(404)
-    out_dir = DONE_DIR / (output_subdir or f"{src.stem}_toc")
+    out_dir = (DONE_DIR / (output_subdir or f"{src.stem}_toc")).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
     return split_epub_by_toc(src, out_dir)
 
 @app.post("/api/split/{upload_id}")
@@ -610,7 +606,7 @@ async def split_size(upload_id: str, max_size_mb: int = MAX_SIZE_MB, output_subd
     src = _resolve_in(INBOX_DIR / upload_id)
     if not src.exists():
         raise HTTPException(404)
-    out_dir = DONE_DIR / (output_subdir or src.stem)
+    out_dir = (DONE_DIR / (output_subdir or src.stem)).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     splitter = _splitter_for(src, max_size_mb)
     report = splitter.split(str(src), str(out_dir))
