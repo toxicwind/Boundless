@@ -341,7 +341,7 @@ def _splitter_for(path: Path, max_size_mb: int):
 
 def _check_boundless(p: Path):
     s = str(p.resolve())
-    if "/mnt" in s.split("/"):
+    if "mnt" in s.split("/"):
         raise HTTPException(403, "Boundary: /mnt access denied")
     return p
 
@@ -406,6 +406,10 @@ async def health():
 @app.get("/api/status")
 async def status():
     return _system_status_payload()
+@app.get("/api/settings")
+async def get_settings():
+    return _load_settings()
+
 @app.put("/api/settings")
 async def update_settings(s: dict):
     merged = _save_settings(s)
