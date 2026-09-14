@@ -3,8 +3,9 @@ web/tray.py — cross-platform system tray (macOS/Windows/Linux).
 Graceful no-op if pystray not installed.
 """
 from __future__ import annotations
-import sys, threading, subprocess
-from pathlib import Path
+
+import threading
+
 
 def start_tray(port: int = 10200):
     """Start a system tray icon with quick actions. Returns immediately if pystray unavailable."""
@@ -13,7 +14,8 @@ def start_tray(port: int = 10200):
         from PIL import Image, ImageDraw
     except Exception:
         return None  # boundless: tray is optional, never crash the server
-    import webbrowser, os
+    import os
+    import webbrowser
 
     def make_icon():
         img = Image.new("RGB", (64,64), "#161b22")

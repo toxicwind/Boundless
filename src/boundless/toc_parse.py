@@ -4,12 +4,13 @@ toc_parse — EPub 3 navigation + NCX parsing primitives for the maximal splitte
 Pure functions, file-split preserved. No /mnt, no boundless-runtime concerns here.
 """
 from __future__ import annotations
-import re
+
 import posixpath
+import re
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Optional
 from urllib.parse import unquote, urlsplit
+
 from lxml import etree
 
 NCX_TYPE = "application/x-dtbncx+xml"
@@ -27,7 +28,7 @@ def local_name(node_or_tag) -> str:
     return etree.QName(tag).localname.lower() if isinstance(tag, str) else ""
 
 
-def attr_local(el, wanted: str) -> Optional[str]:
+def attr_local(el, wanted: str) -> str | None:
     wanted = wanted.lower()
     for key, value in el.attrib.items():
         try:
@@ -91,9 +92,9 @@ def epub_type_tokens(el) -> set[str]:
 @dataclass
 class TocNode:
     title: str
-    href: Optional[str]
+    href: str | None
     source_element: object
-    children: list["TocNode"] = field(default_factory=list)
+    children: list[TocNode] = field(default_factory=list)
 
 
 # ---------- EPUB 3 NAV parsing ----------
@@ -109,7 +110,7 @@ def find_epub3_toc_nav(root):
     return navs[0] if len(navs) == 1 else None
 
 
-def parse_nav_li(li, nav_path: str) -> Optional[TocNode]:
+def parse_nav_li(li, nav_path: str) -> TocNode | None:
     label = first_direct(li, {"a", "span"})
     if label is None:
         labels = li.xpath(".//*[local-name()='a' or local-name()='span']")
@@ -150,7 +151,7 @@ def parse_epub3_toc(nav_root, nav_path: str):
 
 
 # ---------- EPUB 2 NCX parsing ----------
-def parse_ncx_point(point) -> Optional[TocNode]:
+def parse_ncx_point(point) -> TocNode | None:
     labels = point.xpath("./*[local-name()='navLabel']//*[local-name()='text']")
     contents = point.xpath("./*[local-name()='content']")
     title = text_of(labels[0]) if labels else "Untitled Section"

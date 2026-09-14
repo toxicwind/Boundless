@@ -5,7 +5,6 @@ try:
     HAS_LXML = True
 except ImportError:
     HAS_LXML = False
-    import xml.etree.ElementTree as etree
 
 try:
     import ebooklib
@@ -36,3 +35,9 @@ try:
 except ImportError:
     HAS_PYTHON_DOCX = False
     Document = None
+
+__all__ = [
+    etree, HAS_LXML, ebooklib, epub, HAS_EBOOKLIB,
+    PdfReader, PdfWriter, HAS_PYPDF2, fitz, HAS_PYMUPDF,
+    Document, HAS_PYTHON_DOCX,
+]

@@ -4,20 +4,18 @@ toc_build — EPUB package mutation + chunk ZIP building for the maximal splitte
 Pure functions, file-split preserved. No /mnt. Reuses toc_parse primitives.
 """
 from __future__ import annotations
+
 import copy
 import uuid
 import zipfile
 from pathlib import Path
-from typing import Optional
+
 from lxml import etree
 
 from .toc_parse import (
     TocNode,
     local_name,
     xml_parse,
-    PARSER,
-    XHTML_TYPES,
-    NCX_TYPE,
 )
 
 
@@ -128,7 +126,7 @@ def crop_xhtml(data: bytes, start_fragment: str = "", end_fragment: str = "") ->
 # ---------- per-chunk writer ----------
 def build_one(book, zf: zipfile.ZipFile, node: TocNode, start_i: int,
               start_path: str, start_fragment: str, end_i: int,
-              end_path: Optional[str], end_fragment: str, output: Path):
+              end_path: str | None, end_fragment: str, output: Path):
     """File-splitting preservation: rewrites only OPF + nav + cropped XHTML spine,
     copies the rest of the EPUB ZIP entries verbatim (publisher's CSS, images, fonts)."""
     selected_paths = book.spine_paths[start_i:end_i + (1 if end_fragment else 0)]

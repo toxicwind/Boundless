@@ -1,5 +1,6 @@
 """boundless.cli — command-line entry points for the boundless package."""
 from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path
@@ -7,8 +8,8 @@ from pathlib import Path
 
 def main(argv=None) -> int:
     """boundless — split EPUB/PDF/DOCX documents from the command line."""
-    from .universal import UniversalSplitter
     from .models import DEFAULT_MAX_SIZE_MB
+    from .universal import UniversalSplitter
 
     ap = argparse.ArgumentParser(prog="boundless", description="Boundless — accessible document splitter")
     ap.add_argument("input", help="Input file (.epub, .pdf, .docx)")

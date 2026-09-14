@@ -1,8 +1,6 @@
 """
 Registry — file-split preserved
 """
-import re, json
-from typing import List, Dict
 class EdgeCaseRegistry:
     """
     Comprehensive registry of edge cases encountered in accessibility document
@@ -238,7 +236,7 @@ class EdgeCaseRegistry:
     ]
 
     @classmethod
-    def all_cases(cls) -> List[str]:
+    def all_cases(cls) -> list[str]:
         return (
             cls.EPUB_EDGE_CASES +
             cls.PDF_EDGE_CASES +

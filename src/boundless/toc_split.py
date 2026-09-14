@@ -11,42 +11,25 @@ Top-level: one EPUB per top-level TOC entry, with publisher files preserved
 No /mnt. Pure pathlib + zipfile.
 """
 from __future__ import annotations
+
 import os
-import sys
 import subprocess
+import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
-try:
-    from lxml import etree
-except ImportError:
-    print("Missing dependency: lxml")
-    print("Run: python3 -m pip install --user lxml")
-    raise SystemExit(1)
-
+from .toc_build import (
+    build_one,
+)
 from .toc_parse import (
-    TocNode,
     NCX_TYPE,
-    PARSER,
-    local_name,
-    attr_local,
-    xml_parse,
     clean_archive_path,
-    resolve_href,
     parse_epub3_toc,
     parse_ncx_toc,
-    sanitize_filename,
+    resolve_href,
     unique_names,
-)
-from .toc_build import (
-    set_package_title,
-    set_new_identifier,
-    restrict_spine,
-    restrict_epub3_nav,
-    restrict_ncx,
-    build_one,
+    xml_parse,
 )
 
 
@@ -62,11 +45,11 @@ class Book:
     manifest_path_by_id: dict
     manifest_id_by_path: dict
     spine_paths: list
-    nav_path: Optional[str]
-    nav_root: Optional[object]
-    nav_toc: Optional[object]
-    ncx_path: Optional[str]
-    ncx_root: Optional[object]
+    nav_path: str | None
+    nav_root: object | None
+    nav_toc: object | None
+    ncx_path: str | None
+    ncx_root: object | None
     toc: list
 
 
@@ -145,7 +128,7 @@ def locate_top_levels(book: Book):
 
 
 # ---------- boundless file picker ----------
-def choose_epub(arg: Optional[str] = None) -> Optional[Path]:
+def choose_epub(arg: str | None = None) -> Path | None:
     """File picker: CLI arg → macOS native → Linux zenity/kdialog → stdin.
     No /mnt paths accepted."""
     if arg:
@@ -184,7 +167,7 @@ def choose_epub(arg: Optional[str] = None) -> Optional[Path]:
 
 
 # ---------- driver ----------
-def split_epub_by_toc(source: Path, output_dir: Optional[Path] = None) -> dict:
+def split_epub_by_toc(source: Path, output_dir: Path | None = None) -> dict:
     """Public API: split one EPUB by its top-level TOC.
 
     Returns a dict {output_dir, sections: [filenames]}. File-preserving split."""
@@ -199,7 +182,7 @@ def split_epub_by_toc(source: Path, output_dir: Optional[Path] = None) -> dict:
 
     written = []
     with zipfile.ZipFile(source, "r") as zf:
-        for idx, ((node, start_i, start_path, start_fragment), filename) in enumerate(zip(locations, names)):
+        for idx, ((node, start_i, start_path, start_fragment), filename) in enumerate(zip(locations, names, strict=False)):
             if idx + 1 < len(locations):
                 _, next_i, next_path, next_fragment = locations[idx + 1]
                 if next_fragment:
@@ -233,4 +216,4 @@ if __name__ == "__main__":
         main()
     except Exception as exc:
         print(f"Error: {exc}")
-        raise SystemExit(1)
+        raise SystemExit(1) from None

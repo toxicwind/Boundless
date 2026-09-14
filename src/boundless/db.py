@@ -3,12 +3,13 @@ src/boundless/db.py — Persistent SQLite storage for Boundless jobs, history, a
 Uses python's standard sqlite3 library (zero external dependencies).
 """
 from __future__ import annotations
-import sqlite3
+
 import json
-import time
 import os
+import sqlite3
+import time
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import Any
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -74,14 +75,14 @@ def create_job(
     file_size: int,
     method: str = "size",
     max_size_mb: int = 50,
-    book_title: Optional[str] = None,
-    creator: Optional[str] = None,
-    publisher: Optional[str] = None,
-    origin_pipeline: Optional[str] = None,
-    nr_status: Optional[str] = None,
-    profile: Optional[Dict[str, Any]] = None,
-    job_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    book_title: str | None = None,
+    creator: str | None = None,
+    publisher: str | None = None,
+    origin_pipeline: str | None = None,
+    nr_status: str | None = None,
+    profile: dict[str, Any] | None = None,
+    job_id: str | None = None,
+) -> dict[str, Any]:
     jid = job_id or f"job_{int(time.time()*1000)}_{os.urandom(3).hex()}"
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     prof_json = json.dumps(profile or {}, ensure_ascii=False)
@@ -108,7 +109,7 @@ def update_job_progress(
     job_id: str,
     progress: int,
     stage: str,
-    log_msg: Optional[str] = None,
+    log_msg: str | None = None,
 ) -> None:
     with get_db(db_path) as conn:
         row = conn.execute("SELECT log_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
@@ -124,11 +125,11 @@ def complete_job(
     db_path: Path,
     job_id: str,
     output_dir: str,
-    chunks: List[Dict[str, Any]],
+    chunks: list[dict[str, Any]],
     total_output_size: int,
-    log_messages: List[str],
+    log_messages: list[str],
     duration_seconds: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     with get_db(db_path) as conn:
         row = conn.execute("SELECT log_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
@@ -162,7 +163,7 @@ def fail_job(
     db_path: Path,
     job_id: str,
     error: str,
-    log_messages: Optional[List[str]] = None,
+    log_messages: list[str] | None = None,
 ) -> None:
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     with get_db(db_path) as conn:
@@ -184,7 +185,7 @@ def fail_job(
             (error, json.dumps(existing_logs, ensure_ascii=False), now, job_id),
         )
 
-def get_job(db_path: Path, job_id: str) -> Optional[Dict[str, Any]]:
+def get_job(db_path: Path, job_id: str) -> dict[str, Any] | None:
     with get_db(db_path) as conn:
         row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
         if not row:
@@ -199,8 +200,8 @@ def list_jobs(
     db_path: Path,
     limit: int = 100,
     offset: int = 0,
-    status: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    status: str | None = None,
+) -> list[dict[str, Any]]:
     with get_db(db_path) as conn:
         if status:
             rows = conn.execute(
@@ -231,12 +232,12 @@ def record_inbox_item(
     filename: str,
     size: int,
     modified_at: str,
-    title: Optional[str] = None,
-    creator: Optional[str] = None,
-    publisher: Optional[str] = None,
-    nr_status: Optional[str] = None,
-    origin: Optional[Dict[str, Any]] = None,
-    profile_path: Optional[str] = None,
+    title: str | None = None,
+    creator: str | None = None,
+    publisher: str | None = None,
+    nr_status: str | None = None,
+    origin: dict[str, Any] | None = None,
+    profile_path: str | None = None,
 ) -> None:
     with get_db(db_path) as conn:
         conn.execute(
@@ -264,7 +265,7 @@ def remove_inbox_item(db_path: Path, filename: str) -> None:
     with get_db(db_path) as conn:
         conn.execute("DELETE FROM inbox_items WHERE filename = ?", (filename,))
 
-def list_inbox_items(db_path: Path) -> List[Dict[str, Any]]:
+def list_inbox_items(db_path: Path) -> list[dict[str, Any]]:
     with get_db(db_path) as conn:
         rows = conn.execute("SELECT * FROM inbox_items ORDER BY modified_at DESC").fetchall()
         out = []

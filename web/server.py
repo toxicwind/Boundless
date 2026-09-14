@@ -41,35 +41,62 @@ Endpoints:
   GET  /api/edge-cases         — full EdgeCaseRegistry
 """
 from __future__ import annotations
-import os, sys, json, shutil, time, threading, queue, io, zipfile
-from pathlib import Path
-from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse, Response, FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
+
+import io
+import json
+import os
+import shutil
+import sys
+import threading
+import time
+import zipfile
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
+
 import uvicorn
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from boundless import (
-    profile_epub, ensure_profile, auto_create_profiles,
-    EpubSplitter, PdfSplitter, DocxSplitter,
-    ChunkMetadata, SplitReport, A11yLogger,
-    DEFAULT_MAX_SIZE_MB, EdgeCaseRegistry,
+from boundless import (  # noqa: E402
+    DEFAULT_MAX_SIZE_MB,
+    A11yLogger,
+    DocxSplitter,
+    EdgeCaseRegistry,
+    EpubSplitter,
+    PdfSplitter,
+    auto_create_profiles,
+    ensure_profile,
+    profile_epub,
 )
-from boundless.deps import (
-    HAS_LXML, HAS_PYMUPDF, HAS_EBOOKLIB, HAS_PYTHON_DOCX,
+from boundless.db import (  # noqa: E402
+    backfill_from_disk,
+    complete_job,
+    create_job,
+    delete_job,
+    fail_job,
+    get_job,
+    init_db,
+    list_inbox_items,
+    list_jobs,
+    record_inbox_item,
+    remove_inbox_item,
+    update_job_progress,
 )
-from boundless.db import (
-    init_db, create_job, update_job_progress, complete_job, fail_job,
-    get_job, list_jobs, delete_job, record_inbox_item, remove_inbox_item,
-    list_inbox_items, backfill_from_disk,
+from boundless.deps import (  # noqa: E402
+    HAS_EBOOKLIB,
+    HAS_LXML,
+    HAS_PYMUPDF,
+    HAS_PYTHON_DOCX,
 )
+
 
 # ---- .env loader (boundless, no dotenv dep) ----
 def _load_env():
@@ -100,7 +127,7 @@ for _d in (INBOX_DIR, ACTIVE_DIR, DONE_DIR, FAILED_DIR, PROFILES_DIR, PROCESSING
     _d.mkdir(parents=True, exist_ok=True)
 
 # ---- Settings (boundless JSON, editable from frontend) ----
-DEFAULT_SETTINGS: Dict[str, Any] = {
+DEFAULT_SETTINGS: dict[str, Any] = {
     "auto_watch_inbox": True,        # process new files in inbox/ automatically
     "auto_profile_on_upload": True,  # create profile JSON on every upload
     "auto_split_on_upload": False,   # run size-based split immediately on upload
@@ -135,7 +162,7 @@ def _save_settings(s: dict) -> dict:
 
 # ---- Autonomous inbox watcher ----
 _watcher_lock = threading.Lock()
-_watcher_thread: Optional[threading.Thread] = None
+_watcher_thread: threading.Thread | None = None
 _watcher_event = threading.Event()
 
 def _is_stable(p: Path) -> bool:
@@ -148,7 +175,7 @@ def _is_stable(p: Path) -> bool:
     except Exception:
         return False
 
-def _process_one(file: Path, settings: dict) -> Dict[str, Any]:
+def _process_one(file: Path, settings: dict) -> dict[str, Any]:
     """Process a single file: profile, then optionally split. Records to SQLite."""
     log = []
     t0 = time.time()
@@ -247,7 +274,7 @@ def _process_one(file: Path, settings: dict) -> Dict[str, Any]:
 
 def _watcher_loop():
     settings = _load_settings()
-    seen: Dict[str, int] = {}
+    seen: dict[str, int] = {}
     while not _watcher_event.is_set():
         try:
             settings = _load_settings()
@@ -318,7 +345,7 @@ def _check_boundless(p: Path):
         raise HTTPException(403, "Boundary: /mnt access denied")
     return p
 
-def _system_status_payload() -> Dict[str, Any]:
+def _system_status_payload() -> dict[str, Any]:
     inbox_files = [f for f in INBOX_DIR.iterdir() if f.is_file()] if INBOX_DIR.exists() else []
     active_files = list(ACTIVE_DIR.iterdir()) if ACTIVE_DIR.exists() else []
     done_items = list(DONE_DIR.iterdir()) if DONE_DIR.exists() else []
@@ -387,7 +414,7 @@ async def update_settings(s: dict):
     return merged
 
 @app.get("/api/jobs")
-async def get_jobs_route(limit: int = 50, offset: int = 0, status: Optional[str] = None):
+async def get_jobs_route(limit: int = 50, offset: int = 0, status: str | None = None):
     jobs = list_jobs(DB_PATH, limit=limit, offset=offset, status=status)
     return {"jobs": jobs, "count": len(jobs)}
 
@@ -445,7 +472,7 @@ async def process_all_inbox():
     return {"processed": len(results), "results": results}
 
 @app.post("/api/upload")
-async def upload(files: List[UploadFile] = File(...)):
+async def upload(files: list[UploadFile] = File(...)):  # noqa: B008
     settings = _load_settings()
     out = []
     for f in files:
@@ -498,7 +525,7 @@ async def profile_ensure(upload_id: str):
     return {"profile_path": str(out), "profile": json.loads(out.read_text(encoding="utf-8"))}
 
 @app.post("/api/process/{upload_id}")
-async def process_upload(upload_id: str, method: str = "size", max_size_mb: Optional[int] = None):
+async def process_upload(upload_id: str, method: str = "size", max_size_mb: int | None = None):
     """Move inbox → active → run split → done. Returns log + result and records to SQLite."""
     src = _resolve_in(INBOX_DIR / upload_id)
     if not src.exists():
@@ -586,14 +613,14 @@ async def process_upload(upload_id: str, method: str = "size", max_size_mb: Opti
         except Exception:
             pass
         log.append(f"FAILED: {e}")
-        raise HTTPException(500, detail={"error": str(e), "log": log})
+        raise HTTPException(500, detail={"error": str(e), "log": log}) from e
 
 @app.post("/api/split-toc/{upload_id}")
-async def split_toc(upload_id: str, output_subdir: Optional[str] = None):
+async def split_toc(upload_id: str, output_subdir: str | None = None):
     try:
         from boundless import split_epub_by_toc
     except Exception as e:
-        raise HTTPException(503, f"toc_split unavailable (need lxml): {e}")
+        raise HTTPException(503, f"toc_split unavailable (need lxml): {e}") from e
     src = _resolve_in(INBOX_DIR / upload_id)
     if not src.exists():
         raise HTTPException(404)
@@ -602,7 +629,7 @@ async def split_toc(upload_id: str, output_subdir: Optional[str] = None):
     return split_epub_by_toc(src, out_dir)
 
 @app.post("/api/split/{upload_id}")
-async def split_size(upload_id: str, max_size_mb: int = MAX_SIZE_MB, output_subdir: Optional[str] = None):
+async def split_size(upload_id: str, max_size_mb: int = MAX_SIZE_MB, output_subdir: str | None = None):
     src = _resolve_in(INBOX_DIR / upload_id)
     if not src.exists():
         raise HTTPException(404)

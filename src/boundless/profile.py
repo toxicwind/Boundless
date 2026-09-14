@@ -6,10 +6,17 @@ Auto-creates new profiles: watch, CLI, and API all persist to profiles/.
 Boundless: pathlib, tempfile, never /mnt.
 """
 from __future__ import annotations
-import re, os, json, zipfile, posixpath, hashlib, time
+
+import hashlib
+import json
+import os
+import re
+import time
+import zipfile
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Any
+from typing import Any
+
 
 @dataclass
 class PublisherOrigin:
@@ -31,8 +38,8 @@ class EpubProfile:
     identifier: str
     modified: str
     origin: PublisherOrigin
-    access_mode: List[str] = field(default_factory=list)
-    accessibility_feature: List[str] = field(default_factory=list)
+    access_mode: list[str] = field(default_factory=list)
+    accessibility_feature: list[str] = field(default_factory=list)
     manifest_items: int = 0
     spine_items: int = 0
     total_files: int = 0
@@ -49,19 +56,19 @@ class EpubProfile:
     nr_status: str = ""
     nr_chunks_needed: int = 1
     split_strategy: str = ""
-    exts: Dict[str,int] = field(default_factory=dict)
+    exts: dict[str,int] = field(default_factory=dict)
     publisher_confidence: str = "high"
     profile_created: str = ""
     sha256: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["origin"] = asdict(self.origin) if isinstance(self.origin, PublisherOrigin) else self.origin
         return d
     def to_json(self, indent=2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
-def _detect_origin(publisher_text: str, opf_raw: str, s9ml_n: int, files: List[str]) -> PublisherOrigin:
+def _detect_origin(publisher_text: str, opf_raw: str, s9ml_n: int, files: list[str]) -> PublisherOrigin:
     combined = f"{publisher_text}\n{opf_raw}"
     if "Colorado Stat" in combined and "Norton" in combined:
         return PublisherOrigin(publisher="W.W. Norton & Company, Inc.", imprint="W.W. Norton & Company (CSU First Edition)", pipeline="Norton Ebook Central — CSU Custom Publishing (8 spine, 112 manifest, 95 fonts)", platform="Norton Ebook + CSU Canvas", edition="Rams Write, Rhetoric and Critical Engagement — First Edition", confidence="high")
@@ -100,7 +107,8 @@ def profile_epub(epub_path: str | Path, compute_hash: bool = True) -> EpubProfil
             publisher = _g(r'property="dcterms:publisher"[^>]*>(.*?)</', opf_raw)
             if not publisher:
                 m = re.search(r'<meta[^>]+content="([^"]+)"[^>]*name="publisher"', opf_raw, re.I)
-                if m: publisher = m.group(1)
+                if m:
+                    publisher = m.group(1)
         if not publisher and "McGraw" in opf_raw:
             publisher = "McGraw Hill Education"
         language = _g(r'<dc:language[^>]*>(.*?)</dc:language>', opf_clean)
@@ -110,7 +118,7 @@ def profile_epub(epub_path: str | Path, compute_hash: bool = True) -> EpubProfil
         a11y_feat = re.findall(r'property="schema:accessibilityFeature"[^>]*>(.*?)</', opf_raw)
         manifest_n = len(re.findall(r'<item ', opf_clean))
         spine_n = len(re.findall(r'<itemref ', opf_clean))
-        exts: Dict[str,int] = {}
+        exts: dict[str,int] = {}
         for f in files:
             ext = f.rsplit(".",1)[-1].lower() if "." in f else "<noext>"
             exts[ext] = exts.get(ext,0)+1
@@ -144,10 +152,10 @@ def profile_epub(epub_path: str | Path, compute_hash: bool = True) -> EpubProfil
             strategy = f"Generic TOC-breakpoints ({spine_n} spine)"
         return EpubProfile(file=epub_path.name, path=str(epub_path), title=title, creator=creator, publisher=publisher, language=language, identifier=identifier, modified=modified, origin=origin, access_mode=access_mode, accessibility_feature=a11y_feat, manifest_items=manifest_n, spine_items=spine_n, total_files=len(files), size_mb=round(total_mb,1), uncompressed_mb=round(uncomp,1), images=img_n, fonts=font_n, js=js_n, xhtml=xhtml_n, css_files=css_n, s9ml_chunks=s9ml_n, scripted_items=scripted_n, opf_path=opf_name, nr_status=nr_status, nr_chunks_needed=nr_chunks, split_strategy=strategy, exts=dict(sorted(exts.items(), key=lambda x:-x[1])[:12]), publisher_confidence=origin.confidence, profile_created=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), sha256=sha)
 
-def profile_many(paths: List[str | Path]) -> List[EpubProfile]:
+def profile_many(paths: list[str | Path]) -> list[EpubProfile]:
     return [profile_epub(p) for p in paths]
 
-def profile_dir(directory: str | Path, pattern: str = "*.epub") -> List[EpubProfile]:
+def profile_dir(directory: str | Path, pattern: str = "*.epub") -> list[EpubProfile]:
     return [profile_epub(p) for p in sorted(Path(directory).glob(pattern))]
 
 # Auto-create: persist profile JSON to profiles/ directory (boundless, no /mnt)
@@ -168,7 +176,7 @@ def ensure_profile(epub_path: str | Path, profiles_dir: str | Path = None) -> Pa
     latest.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     return out
 
-def auto_create_profiles(targets: List[str | Path], profiles_dir: str | Path = None) -> List[Path]:
+def auto_create_profiles(targets: list[str | Path], profiles_dir: str | Path = None) -> list[Path]:
     """Auto-create profiles for many EPUBs. Returns list of JSON paths."""
     outs = []
     for t in targets:
@@ -184,7 +192,8 @@ def auto_create_profiles(targets: List[str | Path], profiles_dir: str | Path = N
     return outs
 
 if __name__ == "__main__":
-    import argparse, glob as _glob
+    import argparse
+    import glob as _glob
     ap = argparse.ArgumentParser(description="EPUB publisher-aware profile (boundless, auto-creates)")
     ap.add_argument("epubs", nargs="*", help="EPUB files or globs")
     ap.add_argument("--json", action="store_true", help="JSON to stdout")
@@ -199,11 +208,13 @@ if __name__ == "__main__":
         if not expanded and Path(os.path.expanduser(pat)).is_file():
             targets.append(os.path.expanduser(pat))
     if not targets:
-        ap.print_help(); raise SystemExit(1)
+        ap.print_help()
+        raise SystemExit(1)
     if args.auto or args.profiles_dir:
         outs = auto_create_profiles(targets, args.profiles_dir)
         print(f"Auto-created {len(outs)} profiles:")
-        for o in outs: print(f"  {o}")
+        for o in outs:
+            print(f"  {o}")
     profiles = [profile_epub(t) for t in targets]
     out = [p.to_dict() for p in profiles]
     j = json.dumps(out, indent=2, ensure_ascii=False)

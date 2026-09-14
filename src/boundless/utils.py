@@ -2,9 +2,12 @@
 utils — lossless helpers from Epubsplit-Corrected.py (verbatim preserved)
 File-splitting preserves original ZIP entries: mimetype STORED, shared assets.
 """
-import posixpath, re, xml.etree.ElementTree as ET
+import posixpath
+import re
+import xml.etree.ElementTree as ET
 from urllib.parse import unquote
-from collections import defaultdict
+
+
 # ---------------------------------------------------------------------------
 # Helpers borrowed & adapted from JimmXinu/EpubSplit
 # ---------------------------------------------------------------------------

@@ -1,37 +1,16 @@
 """
 pdf — file-split preserved
 """
-import sys
 import os
 import re
-import json
-import zipfile
-import shutil
-import argparse
-import hashlib
-import tempfile
-import subprocess
-import posixpath
-from copy import deepcopy
-from urllib.parse import unquote, urlparse
-from collections import defaultdict, OrderedDict
-from dataclasses import dataclass, field, asdict
-from typing import List, Set, Dict, Tuple, Optional, Any, Callable
-from pathlib import Path
 
-from .deps import (
-    etree, HAS_LXML,
-    epub, HAS_EBOOKLIB,
-    PdfReader, PdfWriter, HAS_PYPDF2,
-    fitz, HAS_PYMUPDF,
-    Document, HAS_PYTHON_DOCX
-)
-
+from .deps import HAS_PYMUPDF, HAS_PYPDF2, PdfReader, PdfWriter, fitz
 from .models import (
-    DEFAULT_MAX_SIZE_BYTES, DEFAULT_MAX_SIZE_MB, EPUB_NS, SHARED_ASSET_PATTERNS,
-    NATURAL_READER_LIMITS, A11Y_STANDARDS, ChunkMetadata, SplitReport, A11yLogger,
+    DEFAULT_MAX_SIZE_BYTES,
+    A11yLogger,
+    ChunkMetadata,
+    SplitReport,
 )
-
 
 # =============================================================================
 
@@ -41,7 +20,7 @@ class PdfSplitter:
     Falls back to page-count splitting if no bookmarks exist.
     """
 
-    def __init__(self, max_size_bytes: int = DEFAULT_MAX_SIZE_BYTES, logger: Optional[A11yLogger] = None):
+    def __init__(self, max_size_bytes: int = DEFAULT_MAX_SIZE_BYTES, logger: A11yLogger | None = None):
         self.max_size = max_size_bytes
         self.logger = logger or A11yLogger()
         self.report = SplitReport()
@@ -72,7 +51,7 @@ class PdfSplitter:
 
         # Group pages by top-level bookmark
         chunks = []
-        for i, item in enumerate(toc):
+        for _i, item in enumerate(toc):
             level, title, page = item
             if level == 1:
                 if chunks:
@@ -83,7 +62,7 @@ class PdfSplitter:
             chunks[-1]["end"] = doc.page_count - 1
 
         for idx, chunk in enumerate(chunks):
-            name = re.sub(r"[^\w\s-]", "", chunk["title"]).strip().replace(" ", "_")[:80] or ("Section_%d" % idx)
+            name = re.sub(r"[^\w\s-]", "", chunk["title"]).strip().replace(" ", "_")[:80] or (f"Section_{idx}")
             new_doc = fitz.open()
             new_doc.insert_pdf(doc, from_page=chunk["start"], to_page=chunk["end"])
 
@@ -103,7 +82,7 @@ class PdfSplitter:
             self.report.total_output_size += size
 
             if size > self.max_size:
-                self.logger.warn("Chunk exceeds max size: %s (%d MB)" % (name, size // (1024*1024)))
+                self.logger.warn(f"Chunk exceeds max size: {name} ({size // (1024*1024)} MB)")
 
         doc.close()
         self.report.chunk_count = len(self.report.chunks)
@@ -123,14 +102,14 @@ class PdfSplitter:
             new_doc = fitz.open()
             new_doc.insert_pdf(doc, from_page=start, to_page=end)
 
-            out_path = os.path.join(out_dir, "Section_%02d.pdf" % chunk_idx)
+            out_path = os.path.join(out_dir, f"Section_{chunk_idx:02d}.pdf")
             new_doc.save(out_path, garbage=4, deflate=True)
             new_doc.close()
 
             size = os.path.getsize(out_path)
             meta = ChunkMetadata(
-                title="Section %d" % chunk_idx,
-                slug="Section_%02d" % chunk_idx,
+                title=f"Section {chunk_idx}",
+                slug=f"Section_{chunk_idx:02d}",
                 source_file=src_path,
                 page_count=end - start + 1,
                 byte_size=size,
@@ -164,14 +143,14 @@ class PdfSplitter:
             for i in range(start, end):
                 writer.add_page(reader.pages[i])
 
-            out_path = os.path.join(out_dir, "Section_%02d.pdf" % chunk_idx)
+            out_path = os.path.join(out_dir, f"Section_{chunk_idx:02d}.pdf")
             with open(out_path, "wb") as f:
                 writer.write(f)
 
             size = os.path.getsize(out_path)
             meta = ChunkMetadata(
-                title="Section %d" % chunk_idx,
-                slug="Section_%02d" % chunk_idx,
+                title=f"Section {chunk_idx}",
+                slug=f"Section_{chunk_idx:02d}",
                 source_file=src_path,
                 page_count=end - start,
                 byte_size=size,

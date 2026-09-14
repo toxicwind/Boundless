@@ -1,41 +1,16 @@
 """
 universal — file-split preserved
 """
-import sys
 import os
-import re
-import json
-import zipfile
-import shutil
-import argparse
-import hashlib
-import tempfile
-import subprocess
-import posixpath
-from copy import deepcopy
-from urllib.parse import unquote, urlparse
-from collections import defaultdict, OrderedDict
-from dataclasses import dataclass, field, asdict
-from typing import List, Set, Dict, Tuple, Optional, Any, Callable
-from pathlib import Path
 
-
-from .models import (
-    DEFAULT_MAX_SIZE_BYTES, DEFAULT_MAX_SIZE_MB, EPUB_NS, SHARED_ASSET_PATTERNS,
-    NATURAL_READER_LIMITS, A11Y_STANDARDS, ChunkMetadata, SplitReport, A11yLogger,
-)
-from .epub import EpubSplitter
-from .pdf import PdfSplitter
 from .docx import DocxSplitter
-from .registry import EdgeCaseRegistry
-from .deps import (
-    etree, HAS_LXML,
-    epub, HAS_EBOOKLIB,
-    PdfReader, PdfWriter, HAS_PYPDF2,
-    fitz, HAS_PYMUPDF,
-    Document, HAS_PYTHON_DOCX
+from .epub import EpubSplitter
+from .models import (
+    DEFAULT_MAX_SIZE_MB,
+    A11yLogger,
+    SplitReport,
 )
-
+from .pdf import PdfSplitter
 
 # =============================================================================
 

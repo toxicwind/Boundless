@@ -1,8 +1,11 @@
 """batch — file-split preserved batch processor (boundless, no /mnt)"""
-import os, json, argparse
-from datetime import datetime
+import argparse
+import json
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
+
 
 def process_file(src_path: str, out_base: str, max_size_mb: int = 50):
     from .epub import EpubSplitter

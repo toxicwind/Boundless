@@ -3,56 +3,23 @@ ADA maximal — models (file-split preserved, not regenerated)
 Split from boundless_splitter.py to avoid loss.
 """
 import sys
-import os
-import re
-import json
-import zipfile
-import shutil
-import argparse
-import hashlib
-import tempfile
-import subprocess
-import posixpath
-from copy import deepcopy
-from urllib.parse import unquote, urlparse
-from collections import defaultdict, OrderedDict
-from dataclasses import dataclass, field, asdict
-from typing import List, Set, Dict, Tuple, Optional, Any, Callable
-from pathlib import Path
+from dataclasses import dataclass, field
 
-# Optional dependencies with graceful degradation
-try:
-    from lxml import etree
-    HAS_LXML = True
-except ImportError:
-    HAS_LXML = False
-    import xml.etree.ElementTree as etree
-
-try:
-    import ebooklib
-    from ebooklib import epub
-    HAS_EBOOKLIB = True
-except ImportError:
-    HAS_EBOOKLIB = False
-
-try:
-    from PyPDF2 import PdfReader, PdfWriter
-    HAS_PYPDF2 = True
-except ImportError:
-    HAS_PYPDF2 = False
-
-try:
-    import fitz  # PyMuPDF
-    HAS_PYMUPDF = True
-except ImportError:
-    HAS_PYMUPDF = False
-
-try:
-    from docx import Document
-    HAS_PYTHON_DOCX = True
-except ImportError:
-    HAS_PYTHON_DOCX = False
-
+# Optional dependencies — single source of truth in .deps
+from .deps import (  # noqa: F401
+    HAS_EBOOKLIB,
+    HAS_LXML,
+    HAS_PYMUPDF,
+    HAS_PYPDF2,
+    HAS_PYTHON_DOCX,
+    Document,
+    PdfReader,
+    PdfWriter,
+    ebooklib,
+    epub,
+    etree,
+    fitz,
+)
 
 # =============================================================================
 
@@ -124,11 +91,11 @@ class ChunkMetadata:
     page_count: int = 0
     word_count: int = 0
     byte_size: int = 0
-    spine_files: List[str] = field(default_factory=list)
-    asset_files: List[str] = field(default_factory=list)
-    heading_structure: List[Tuple[int, str]] = field(default_factory=list)
+    spine_files: list[str] = field(default_factory=list)
+    asset_files: list[str] = field(default_factory=list)
+    heading_structure: list[tuple[int, str]] = field(default_factory=list)
     language: str = "en"
-    accessibility_features: List[str] = field(default_factory=list)
+    accessibility_features: list[str] = field(default_factory=list)
     conformance_claim: str = ""
 
 
@@ -140,11 +107,11 @@ class SplitReport:
     source_format: str = ""
     chunk_count: int = 0
     total_output_size: int = 0
-    chunks: List[ChunkMetadata] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
-    accessibility_notes: List[str] = field(default_factory=list)
-    legal_compliance: Dict[str, bool] = field(default_factory=dict)
+    chunks: list[ChunkMetadata] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    accessibility_notes: list[str] = field(default_factory=list)
+    legal_compliance: dict[str, bool] = field(default_factory=dict)
 
 
 # =============================================================================
@@ -156,9 +123,9 @@ class A11yLogger:
 
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
-        self.warnings: List[str] = []
-        self.errors: List[str] = []
-        self.notes: List[str] = []
+        self.warnings: list[str] = []
+        self.errors: list[str] = []
+        self.notes: list[str] = []
 
     def warn(self, msg: str):
         self.warnings.append(msg)
@@ -175,7 +142,7 @@ class A11yLogger:
         if self.verbose:
             print("[NOTE] " + msg)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "warnings": self.warnings,
             "errors": self.errors,

@@ -12,20 +12,19 @@ import os
 import sys
 import zipfile
 from dataclasses import asdict
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
+from .deps import HAS_PYMUPDF, HAS_PYTHON_DOCX, Document, fitz
 from .models import A11Y_STANDARDS
-from .universal import UniversalSplitter
 from .registry import EdgeCaseRegistry
-from .deps import HAS_PYMUPDF, HAS_PYTHON_DOCX, fitz, Document
+from .universal import UniversalSplitter
 
 mcp = MCPServer("boundless-splitter")
 
 
-def _validate_epub(path: str) -> List[str]:
+def _validate_epub(path: str) -> list[str]:
     issues = []
     try:
         with zipfile.ZipFile(path, "r") as z:
@@ -41,7 +40,7 @@ def _validate_epub(path: str) -> List[str]:
     return issues
 
 
-def _validate_pdf(path: str) -> List[str]:
+def _validate_pdf(path: str) -> list[str]:
     issues = []
     if HAS_PYMUPDF:
         try:
@@ -60,7 +59,7 @@ def _validate_pdf(path: str) -> List[str]:
     return issues
 
 
-def _validate_docx(path: str) -> List[str]:
+def _validate_docx(path: str) -> list[str]:
     issues = []
     if HAS_PYTHON_DOCX:
         try:
@@ -85,7 +84,7 @@ def split_document(source_path: str, output_dir: str, max_size_mb: int = 50) -> 
 @mcp.tool()
 def validate_accessibility(document_path: str, standard: str = "wcag21_aa") -> str:
     """Check a document for accessibility issues against WCAG/EPUB-A11Y/PDF-UA."""
-    issues: List[str] = []
+    issues: list[str] = []
     if not os.path.exists(document_path):
         issues.append("File not found")
     else:
@@ -102,7 +101,7 @@ def validate_accessibility(document_path: str, standard: str = "wcag21_aa") -> s
 
 
 @mcp.tool()
-def generate_vpat(report: Dict[str, Any]) -> str:
+def generate_vpat(report: dict[str, Any]) -> str:
     """Generate a Voluntary Product Accessibility Template (VPAT) summary."""
     vpat = {
         "product_name": "BOUNDLESS Document Splitter",

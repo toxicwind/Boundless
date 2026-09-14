@@ -2,23 +2,29 @@
 epub — file-split preserved EpubSplitter + lossless asset tracing
 Uses ZIP entry preservation (not from-scratch regeneration).
 """
-import os, re, json, zipfile, shutil, argparse, hashlib, tempfile, posixpath
+import os
+import posixpath
+import re
+import shutil
+import tempfile
+import zipfile
+from collections import defaultdict
 from copy import deepcopy
-from urllib.parse import unquote, urlparse
-from collections import defaultdict, OrderedDict
-from pathlib import Path
-from typing import List, Set, Dict, Tuple, Optional, Any
-from .deps import etree, HAS_LXML
+from urllib.parse import unquote
+
+from .deps import HAS_LXML, etree
+
 print(f"DEBUG: EpubSplitter using lxml? {HAS_LXML}, etree: {etree}")
-from .models import DEFAULT_MAX_SIZE_BYTES, EPUB_NS, SHARED_ASSET_PATTERNS, ChunkMetadata, SplitReport, A11yLogger
-from .utils import discover_chunk_assets, compute_shared_assets, _rewrite_opf, _strip_external_links, get_path_part, resolve_href
+from .models import DEFAULT_MAX_SIZE_BYTES, EPUB_NS, A11yLogger, ChunkMetadata, SplitReport  # noqa: E402
+
+
 class EpubSplitter:
     """
     Split EPUBs by table of contents while preserving accessibility metadata.
     Designed for Natural Reader 50MB constraint and screen reader compatibility.
     """
 
-    def __init__(self, max_size_bytes: int = DEFAULT_MAX_SIZE_BYTES, logger: Optional[A11yLogger] = None):
+    def __init__(self, max_size_bytes: int = DEFAULT_MAX_SIZE_BYTES, logger: A11yLogger | None = None):
         self.max_size = max_size_bytes
         self.logger = logger or A11yLogger()
         self.report = SplitReport()
@@ -113,7 +119,7 @@ class EpubSplitter:
                             if os.path.isfile(item_p) and not item.lower().endswith((".xhtml", ".html", ".htm", ".opf")):
                                 chunk_assets.add(posixpath.join(d, item))
                     else:
-                        for root2, dirs2, files2 in os.walk(abs_d):
+                        for root2, _dirs2, files2 in os.walk(abs_d):
                             rel_root = os.path.relpath(root2, extract_dir).replace("\\", "/")
                             for f2 in files2:
                                 rel_path = posixpath.join(rel_root, f2) if rel_root else f2
@@ -179,20 +185,20 @@ class EpubSplitter:
             self.report.total_output_size += size
 
             if size > self.max_size:
-                self.logger.warn("Chunk exceeds max size: %s (%d MB > %d MB)" % (name, size // (1024*1024), self.max_size // (1024*1024)))
+                self.logger.warn(f"Chunk exceeds max size: {name} ({size // (1024*1024)} MB > {self.max_size // (1024*1024)} MB)")
 
         self.report.chunk_count = len(self.report.chunks)
         shutil.rmtree(extract_dir)
         return self.report
 
-    def _find_opf(self, extract_dir: str) -> Optional[str]:
-        for root, dirs, files in os.walk(extract_dir):
+    def _find_opf(self, extract_dir: str) -> str | None:
+        for root, _dirs, files in os.walk(extract_dir):
             for f in files:
                 if f.endswith(".opf"):
                     return os.path.join(root, f)
         return None
 
-    def _build_toc_map(self, extract_dir: str, opf_tree, opf_dir: str, ns: Dict) -> Dict[str, str]:
+    def _build_toc_map(self, extract_dir: str, opf_tree, opf_dir: str, ns: dict) -> dict[str, str]:
         """Build mapping from file basename to TOC title."""
         toc_map = {}
 
@@ -247,7 +253,7 @@ class EpubSplitter:
 
         return toc_map
 
-    def _scan_assets(self, extract_dir: str, spine_files: List[str]) -> Dict[str, Set[str]]:
+    def _scan_assets(self, extract_dir: str, spine_files: list[str]) -> dict[str, set[str]]:
         """Scan HTML files for referenced assets."""
         asset_map = {}
         for href in spine_files:
@@ -273,11 +279,11 @@ class EpubSplitter:
                 asset_map[href] = set()
         return asset_map
 
-    def _discover_shared_assets(self, extract_dir: str) -> Set[str]:
+    def _discover_shared_assets(self, extract_dir: str) -> set[str]:
         """Discover shared styling, fonts, and scripts."""
         shared = set()
         shared_patterns = ("css", "styles", "style", "fonts", "font", "typefaces", "scripts")
-        for root, dirs, files in os.walk(extract_dir):
+        for root, _dirs, files in os.walk(extract_dir):
             rel_root = os.path.relpath(root, extract_dir).replace("\\", "/")
             for f in files:
                 rel_path = posixpath.join(rel_root, f) if rel_root else f
@@ -288,7 +294,7 @@ class EpubSplitter:
                     shared.add(rel_path)
         return shared
 
-    def _dir_to_name(self, dir_name: str, toc_map: Dict[str, str]) -> str:
+    def _dir_to_name(self, dir_name: str, toc_map: dict[str, str]) -> str:
         """Convert directory name to human-readable chunk name."""
         clean = dir_name
         if clean.startswith("OPS/"):
