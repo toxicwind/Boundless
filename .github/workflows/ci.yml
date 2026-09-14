@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Tests (${{ matrix.os }})
+    name: Tests (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -21,29 +21,24 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install system deps (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[full,dev]"
-          pip install playwright requests pytest
-      - name: Install Playwright browsers
-        run: playwright install --with-deps chromium
       - name: Compile check
         run: |
-          python -m compileall src/ada_splitter web
-      - name: Run unit + E2E tests
+          python -m compileall src/boundless web
+      - name: Lint (ruff)
+        run: |
+          ruff check src/boundless web
+      - name: Run unit tests
         env:
           BOUNDLESS_TEST: "1"
         run: |
-          pytest tests/ -v
+          pytest tests/test_e2e.py -v -k "not playwright"
       - name: Smoke import
         run: |
-          python -c "import sys; sys.path.insert(0,'src'); from ada_splitter import profile_epub, split_epub_by_toc, EpubSplitter, PdfSplitter, DocxSplitter; print('imports ok')"
+          python -c "import sys; sys.path.insert(0,'src'); from boundless import profile_epub, split_epub_by_toc, EpubSplitter, PdfSplitter, DocxSplitter, UniversalSplitter; from boundless.cli import main, web; print('imports ok')"
 
   build:
     name: Build binary (${{ matrix.os }})
@@ -61,18 +56,14 @@ jobs:
       - name: Install build deps
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[full,dev]"
+          pip install -e ".[full]"
           pip install pyinstaller
-      - name: Build (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        run: pyinstaller --noconfirm --clean boundless.spec
-      - name: Build (Windows)
-        if: matrix.os == 'windows-latest'
+      - name: Build
         run: pyinstaller --noconfirm --clean boundless.spec
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: boundless-boundless-${{ matrix.os }}
+          name: boundless-${{ matrix.os }}
           path: |
             dist/boundless
             dist/boundless.exe

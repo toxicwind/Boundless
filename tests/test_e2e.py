@@ -9,7 +9,7 @@ Run:
   pytest tests/test_e2e.py -v
 """
 from __future__ import annotations
-import os, time, json, shutil, subprocess
+import os, sys, time, json, shutil, subprocess
 from pathlib import Path
 import pytest
 
@@ -41,7 +41,7 @@ def server(_clean_state):
     env = os.environ.copy()
     env["PORT"] = "10201"
     proc = subprocess.Popen(
-        ["python", "-m", "uvicorn", "web.server:app",
+        [sys.executable, "-m", "uvicorn", "web.server:app",
          "--host", "127.0.0.1", "--port", "10201", "--log-level", "warning"],
         cwd=str(REPO), env=env,
     )
@@ -127,6 +127,41 @@ def uploaded_id(request, http, server) -> str:
 
 def _uploaded_id_to_dict(value):
     return value[1] if isinstance(value, tuple) else value
+
+
+@pytest.fixture(scope="session")
+def sample_epub(tmp_path_factory):
+    """Build a minimal synthetic EPUB so inbox/process tests run anywhere."""
+    import zipfile
+    d = tmp_path_factory.mktemp("sample_epub")
+    epub_path = d / "sample.epub"
+    container = """<?xml version="1.0"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>"""
+    opf = """<?xml version="1.0"?>
+<package version="3.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>Sample</dc:title><dc:identifier id="uid">sample-1</dc:identifier>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="ch1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="ch1"/></spine>
+</package>"""
+    nav = """<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Nav</title></head>
+<body><nav><ol><li><a href="ch1.xhtml">Chapter 1</a></li></ol></nav></body></html>"""
+    ch1 = """<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Ch1</title></head>
+<body><h1>Chapter 1</h1><p>Sample content.</p></body></html>"""
+    with zipfile.ZipFile(epub_path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("mimetype", "application/epub+zip")
+        z.writestr("META-INF/container.xml", container)
+        z.writestr("OEBPS/content.opf", opf)
+        z.writestr("OEBPS/nav.xhtml", nav)
+        z.writestr("OEBPS/ch1.xhtml", ch1)
+    return epub_path
 
 # ============================================================
 # First-class tests for the 3 real EPUBs
@@ -287,7 +322,7 @@ def test_processing_state(server, http):
         assert k in p
         assert isinstance(p[k], list)
 
-def test_autonomous_inbox_drop(server, http):
+def test_autonomous_inbox_drop(server, http, sample_epub):
     """Drop a fresh copy into inbox, watcher should auto-process it."""
     s = http.get(f"{server}/api/settings", timeout=5).json()
     s["auto_split_on_upload"] = True
@@ -297,7 +332,7 @@ def test_autonomous_inbox_drop(server, http):
     inbox.mkdir(parents=True, exist_ok=True)
     name = f"autonomous_{int(time.time())}.epub"
     dest = inbox / name
-    shutil.copy(EPUB_FINANCIAL, dest)
+    shutil.copy(sample_epub, dest)
     # Wait for the watcher (poll every 2s, plus 1.5s stability)
     for _ in range(15):
         if not dest.exists() and any(PROFILES.glob(f"{Path(name).stem}__*.json")):
@@ -310,12 +345,12 @@ def test_autonomous_inbox_drop(server, http):
     s["auto_split_on_upload"] = False
     http.put(f"{server}/api/settings", json=s, timeout=5)
 
-def test_process_endpoint(server, http):
+def test_process_endpoint(server, http, sample_epub):
     """Test the /api/process/{id} flow: inbox -> active -> done."""
     name = f"manual_{int(time.time())}.epub"
     dest = PROCESSING / "inbox" / name
     PROCESSING.joinpath("inbox").mkdir(parents=True, exist_ok=True)
-    shutil.copy(EPUB_FINANCIAL, dest)
+    shutil.copy(sample_epub, dest)
     r = http.post(f"{server}/api/process/{name}?method=size&max_size_mb=50", timeout=300)
     assert r.status_code == 200, r.text
     data = r.json()

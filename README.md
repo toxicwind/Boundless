@@ -8,33 +8,69 @@ Boundless is an accessibility-first EPUB, PDF, and DOCX document splitter design
 - **Publisher-Aware:** Automatically creates profiles to handle specific publisher file structures.
 - **Modular Pipeline:** Processes documents in a clean, file-system-safe pipeline.
 - **Web UI:** Accessible interface running on port 10200.
+- **MCP Server:** Model Context Protocol server exposing splitting, validation, and VPAT tools.
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/toxicwind/boundless
-cd boundless
+git clone https://github.com/toxicwind/Boundless
+cd Boundless
 
-# Install dependencies
-pip install -r requirements.txt
-# OR
-bun install
+# Install with all format support
+pip install -e ".[full]"
+
+# Or minimal + specific formats
+pip install -e ".[epub,pdf,docx]"
 ```
 
 ## Usage
 
-Start the web interface:
+### Command line
 
 ```bash
-python -m boundless.server
-# OR
-bun run server
+# Split a document
+boundless input.epub -o ./output --max-mb 50
+
+# Split by table of contents
+boundless-toc input.epub -o ./output
+
+# Launch the web UI
+boundless-web
+
+# Run the MCP server (stdio)
+boundless-mcp
 ```
 
-## Community Adoption
+### Web interface
 
-Our ecosystem continues to expand, with developers across diverse fields integrating boundless into their production workflows with notable momentum. This broad adoption reflects the community's trust in the project as a reliable, efficient standard for modern data processing.
+Start the web UI:
+
+```bash
+boundless-web
+# or
+python -m web.server
+```
+
+Then open http://127.0.0.1:10200. Drop EPUBs into `processing/inbox/` for autonomous processing.
+
+### Python API
+
+```python
+from boundless import UniversalSplitter
+
+splitter = UniversalSplitter(max_size_mb=50)
+report = splitter.split("input.epub", "./output")
+print(f"{len(report.chunks)} chunks")
+```
+
+## Development
+
+```bash
+pip install -e ".[full,dev]"
+pytest tests/ -v
+ruff check src/boundless web
+```
 
 ## License
 

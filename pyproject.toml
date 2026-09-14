@@ -10,7 +10,7 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [{name = "toxicwind"}]
-keywords = ["accessibility", "ada", "wcag", "epub", "pdf", "docx", "splitter", "natural-reader", "section-508", "boundless", "boundless"]
+keywords = ["accessibility", "ada", "wcag", "epub", "pdf", "docx", "splitter", "natural-reader", "section-508", "boundless"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Education",
@@ -30,6 +30,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pydantic>=2.6.0",
     "lxml>=4.9.0",
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -38,24 +39,26 @@ pdf = ["pymupdf>=1.23.0", "PyPDF2>=3.0.0"]
 docx = ["python-docx>=0.8.11"]
 tray = ["pystray>=0.19.5", "Pillow>=10.0.0"]
 full = ["lxml>=4.9.0", "beautifulsoup4>=4.12.0", "ebooklib>=0.18", "pymupdf>=1.23.0", "PyPDF2>=3.0.0", "python-docx>=0.8.11", "pystray>=0.19.5", "Pillow>=10.0.0"]
-dev = ["pytest>=8.0.0", "httpx>=0.27.0", "ruff>=0.3.0", "playwright>=1.42.0", "requests>=2.31.0"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "httpx>=0.27.0", "ruff>=0.3.0", "playwright>=1.42.0", "requests>=2.31.0"]
 
 [project.scripts]
-boundless = "boundless_entry:main"
-boundless-web = "web.server:run"
-boundless-toc = "ada_splitter.toc_split:main"
-boundless-profile = "ada_splitter.profile:profile_epub"
+boundless = "boundless.cli:main"
+boundless-web = "boundless.cli:web"
+boundless-toc = "boundless.toc_split:main"
+boundless-mcp = "boundless.mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/toxicwind/boundless"
-Issues = "https://github.com/toxicwind/boundless/issues"
-Documentation = "https://github.com/toxicwind/boundless#readme"
+Homepage = "https://github.com/toxicwind/Boundless"
+Issues = "https://github.com/toxicwind/Boundless/issues"
+Documentation = "https://github.com/toxicwind/Boundless#readme"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = [".", "src"]
+include = ["web", "web.*", "boundless", "boundless.*"]
 
 [tool.setuptools.package-data]
-"ada_splitter" = ["*.json"]
+"boundless" = ["*.json"]
+"web" = ["*.html", "*.css", "*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
