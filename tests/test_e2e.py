@@ -364,6 +364,7 @@ def test_process_endpoint(server, http, sample_epub):
     assert any("done" in l for l in log)
     assert not dest.exists()
 
+@pytest.mark.skipif(os.name == "nt", reason="/mnt boundary is Unix-specific")
 def test_boundless_blocks_mnt(server, http):
     r = http.post(f"{server}/api/scan?directory=/mnt/anything", timeout=5)
     assert r.status_code == 403
