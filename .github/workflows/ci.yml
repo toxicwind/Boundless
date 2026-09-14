@@ -35,7 +35,7 @@ jobs:
         env:
           BOUNDLESS_TEST: "1"
         run: |
-          pytest tests/test_e2e.py -v -k "not playwright"
+          pytest tests/test_e2e.py -v -k "not test_index_renders and not test_settings_renders"
       - name: Smoke import
         run: |
           python -c "import sys; sys.path.insert(0,'src'); from boundless import profile_epub, split_epub_by_toc, EpubSplitter, PdfSplitter, DocxSplitter, UniversalSplitter; from boundless.cli import main, web; print('imports ok')"
