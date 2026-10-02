@@ -5,6 +5,7 @@ try:
     HAS_LXML = True
 except ImportError:
     HAS_LXML = False
+    etree = None
 
 try:
     import ebooklib
@@ -12,6 +13,7 @@ try:
     HAS_EBOOKLIB = True
 except ImportError:
     HAS_EBOOKLIB = False
+    ebooklib = None
     epub = None
 
 try:
